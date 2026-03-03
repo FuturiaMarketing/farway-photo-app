@@ -31,7 +31,7 @@ body {
 h1,
 h2,
 h3 {
-  font-family: var(--font-cal-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-open-sans), Arial, Helvetica, sans-serif;
 }
 
 button,

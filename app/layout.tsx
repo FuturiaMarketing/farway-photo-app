@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { Cal_Sans, Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Open_Sans } from "next/font/google";
 import "./globals.css";
 
-const calSans = Cal_Sans({
-  variable: "--font-cal-sans",
+const openSans = Open_Sans({
+  variable: "--font-open-sans",
   subsets: ["latin"],
-  weight: "400",
+  weight: ["400", "600", "700"],
 });
 
 const geistSans = Geist({
@@ -31,7 +31,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${calSans.variable} ${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${openSans.variable} ${geistSans.variable} ${geistMono.variable} antialiased`}
         suppressHydrationWarning
       >
         {children}
