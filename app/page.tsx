@@ -1794,12 +1794,25 @@ export default function Home() {
 
   const toggleAcfCheckboxValue = (field: AcfField, optionValue: string) => {
     const currentRawValue = normalizeAcfValueForField(field, acfValues[field.name]);
-    const currentValue: string[] = Array.isArray(currentRawValue)
-      ? [...currentRawValue]
-      : [];
-    const nextValue = currentValue.includes(optionValue)
-      ? currentValue.filter((value) => value !== optionValue)
-      : [...currentValue, optionValue];
+    const currentValue: string[] = [];
+
+    if (Array.isArray(currentRawValue)) {
+      for (const value of currentRawValue) {
+        currentValue.push(value);
+      }
+    }
+
+    const nextValue: string[] = [];
+
+    if (currentValue.includes(optionValue)) {
+      for (const value of currentValue) {
+        if (value !== optionValue) {
+          nextValue.push(value);
+        }
+      }
+    } else {
+      nextValue.push(...currentValue, optionValue);
+    }
 
     setAcfFieldValue(field, nextValue);
   };
