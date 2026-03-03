@@ -6,6 +6,8 @@ import {
   normalizeAcfValue,
 } from '@/lib/server/acf-fields';
 import {
+  clearBinaryAssetsByNamespace,
+  ensureInitialDatabaseCompaction,
   hasDatabaseConnection,
   readJsonValue,
   writeJsonValue,
@@ -30,6 +32,7 @@ type SyncRequest = {
   productShortDescriptionHtml?: string;
   acfValues?: Record<string, unknown>;
   selectedAdditionalScenarioLabels?: string[];
+  selectedExtraScenarioLocation?: string;
   companionProductIds?: number[];
   syncMode?: 'replace' | 'keep-existing';
 };
@@ -65,6 +68,11 @@ type WooProductResponse = {
     src?: string;
     name?: string;
     alt?: string;
+  }>;
+  tags?: Array<{
+    id?: number;
+    name?: string;
+    slug?: string;
   }>;
 };
 
@@ -109,6 +117,10 @@ const occasionDusoChoiceByLabel = new Map<string, string>([
   ['una sera d’estate: gelato con gli amici', 'sera_estate_gelato'],
   ['pranzi semplici ed eleganti', 'occasioni_eleganti'],
   ['cene o pranzi semplici ed eleganti', 'occasioni_eleganti'],
+  ['cerimonia in famiglia', 'cerimonia_in-famiglia'],
+  ['picnic al parco', 'picnic_al_parco'],
+  ['pomeriggio al museo', 'pomeriggio_al_museo'],
+  ['weekend al lago', 'weekend_al_lago'],
 ]);
 
 function sanitizeSegment(value: string) {
@@ -148,6 +160,28 @@ function getFileExtension(mimeType: string) {
   return 'png';
 }
 
+function buildPublicImageUrl(baseUrl: string, assetId: string, filename: string) {
+  return `${baseUrl}/api/public-image/${encodeURIComponent(assetId)}/${encodeURIComponent(filename)}`;
+}
+
+function resolveProvidedImageUrl(baseUrl: string, value: string) {
+  const trimmed = String(value || '').trim();
+
+  if (!trimmed) {
+    return '';
+  }
+
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed;
+  }
+
+  if (trimmed.startsWith('/')) {
+    return `${baseUrl}${trimmed}`;
+  }
+
+  return `${baseUrl}/${trimmed.replace(/^\/+/, '')}`;
+}
+
 function normalizeColor(value: string) {
   return value
     .toLowerCase()
@@ -163,6 +197,15 @@ function normalizeOccasionLabel(value: string) {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[’']/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizeTagName(value: string) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -437,8 +480,58 @@ async function failJob(jobId: string, message: string) {
   });
 }
 
+async function ensureWooProductTagId(
+  cleanUrl: string,
+  authQuery: string,
+  tagName: string
+) {
+  const normalizedTarget = normalizeTagName(tagName);
+  if (!normalizedTarget) {
+    return null;
+  }
+
+  const tagsEndpoint = `${cleanUrl}/wp-json/wc/v3/products/tags?search=${encodeURIComponent(tagName)}&per_page=100&${authQuery}`;
+  const tagsRes = await fetch(tagsEndpoint, { method: 'GET' });
+
+  if (!tagsRes.ok) {
+    throw new Error(`Lettura tag WooCommerce fallita: ${tagsRes.status}`);
+  }
+
+  const existingTags = (await tagsRes.json()) as Array<{
+    id?: number;
+    name?: string;
+    slug?: string;
+  }>;
+
+  const exactMatch = existingTags.find(
+    (tag) => typeof tag.id === 'number' && normalizeTagName(tag.name || '') === normalizedTarget
+  );
+
+  if (exactMatch?.id) {
+    return exactMatch.id;
+  }
+
+  const createRes = await fetch(`${cleanUrl}/wp-json/wc/v3/products/tags?${authQuery}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: tagName,
+    }),
+  });
+
+  if (!createRes.ok) {
+    const createError = await createRes.text();
+    throw new Error(`Creazione tag WooCommerce fallita: ${createRes.status} ${createError}`);
+  }
+
+  const createdTag = (await createRes.json()) as { id?: number };
+  return typeof createdTag.id === 'number' ? createdTag.id : null;
+}
+
 async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
   try {
+    await ensureInitialDatabaseCompaction();
+
     const settings = await getResolvedWooCommerceSettings();
 
     if (!settings) {
@@ -452,6 +545,7 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
           .filter((value): value is number => Number.isInteger(value) && value > 0 && value !== body.productId)
       )
     );
+    const selectedExtraScenarioLocation = String(body.selectedExtraScenarioLocation || '').trim();
     const descriptionHtml = String(body.productDescriptionHtml || '').trim();
     const shortDescriptionHtml =
       String(body.productShortDescriptionHtml || '').trim() ||
@@ -508,6 +602,10 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
     const syncedImageUrls = new Map<string, string>();
     const shouldUseDatabaseAssetStorage = hasDatabaseConnection();
 
+    if (shouldUseDatabaseAssetStorage) {
+      await clearBinaryAssetsByNamespace('woo-sync');
+    }
+
     let exportDir = '';
     if (!shouldUseDatabaseAssetStorage) {
       exportDir = path.join(
@@ -523,43 +621,49 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
 
     for (const result of body.generatedResults) {
       const parsed = parseDataUrl(result.url);
+      const assetLabel = `${body.productName} ${result.color} ${result.pose} di Farway Milano`;
+      if (parsed) {
+        const extension = getFileExtension(parsed.mimeType);
+        const filename = `${sanitizeFileName(assetLabel)}.${extension}`;
 
-      if (!parsed) {
+        if (shouldUseDatabaseAssetStorage) {
+          const assetId = await writeBinaryAsset({
+            namespace: 'woo-sync',
+            key: [
+              sanitizeSegment(body.projectName),
+              sanitizeSegment(body.productName),
+              result.key,
+              filename,
+            ].join('__'),
+            mimeType: parsed.mimeType,
+            bytes: Buffer.from(parsed.base64, 'base64'),
+            metadata: {
+              projectName: body.projectName,
+              productName: body.productName,
+              resultKey: result.key,
+              filename,
+              label: assetLabel,
+            },
+          });
+
+          syncedImageUrls.set(result.key, buildPublicImageUrl(publicBaseUrl, assetId, filename));
+        } else {
+          const absoluteFile = path.join(exportDir, filename);
+          const publicFile = `${publicBaseUrl}/woo-sync/${sanitizeSegment(body.projectName)}/${sanitizeSegment(body.productName)}/${filename}`;
+
+          await writeFile(absoluteFile, Buffer.from(parsed.base64, 'base64'));
+          syncedImageUrls.set(result.key, publicFile);
+        }
+        continue;
+      }
+
+      const resolvedImageUrl = resolveProvidedImageUrl(publicBaseUrl, result.url);
+
+      if (!resolvedImageUrl) {
         throw new Error(`Immagine non valida per ${result.pose} ${result.color}`);
       }
 
-      const extension = getFileExtension(parsed.mimeType);
-      const assetLabel = `${body.productName} ${result.color} ${result.pose} di Farway Milano`;
-      const filename = `${sanitizeFileName(assetLabel)}.${extension}`;
-
-      if (shouldUseDatabaseAssetStorage) {
-        const assetId = await writeBinaryAsset({
-          namespace: 'woo-sync',
-          key: [
-            sanitizeSegment(body.projectName),
-            sanitizeSegment(body.productName),
-            result.key,
-            filename,
-          ].join('__'),
-          mimeType: parsed.mimeType,
-          bytes: Buffer.from(parsed.base64, 'base64'),
-          metadata: {
-            projectName: body.projectName,
-            productName: body.productName,
-            resultKey: result.key,
-            filename,
-            label: assetLabel,
-          },
-        });
-
-        syncedImageUrls.set(result.key, `${publicBaseUrl}/api/public-image/${assetId}`);
-      } else {
-        const absoluteFile = path.join(exportDir, filename);
-        const publicFile = `${publicBaseUrl}/woo-sync/${sanitizeSegment(body.projectName)}/${sanitizeSegment(body.productName)}/${filename}`;
-
-        await writeFile(absoluteFile, Buffer.from(parsed.base64, 'base64'));
-        syncedImageUrls.set(result.key, publicFile);
-      }
+      syncedImageUrls.set(result.key, resolvedImageUrl);
     }
 
     const galleryOrder = [
@@ -648,6 +752,18 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
         )
         .map((meta) => [meta.key, meta.id])
     );
+    const existingTagIds = (product.tags || [])
+      .map((tag) => (typeof tag.id === 'number' ? tag.id : null))
+      .filter((value): value is number => value !== null);
+    let selectedLocationTagId: number | null = null;
+
+    if (selectedExtraScenarioLocation && (body.selectedAdditionalScenarioLabels || []).length > 0) {
+      selectedLocationTagId = await ensureWooProductTagId(
+        cleanUrl,
+        authQuery,
+        selectedExtraScenarioLocation
+      );
+    }
     const acfMetaPayload = applicableAcfFields.flatMap((field) => {
       const normalizedSubmittedValue = Object.prototype.hasOwnProperty.call(
         submittedAcfValues,
@@ -774,6 +890,13 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
         cross_sell_ids: Array.from(
           new Set([...(product.cross_sell_ids || []), ...companionProductIds])
         ),
+        ...(selectedLocationTagId
+          ? {
+              tags: Array.from(new Set([...existingTagIds, selectedLocationTagId])).map((id) => ({
+                id,
+              })),
+            }
+          : {}),
         ...(acfMetaPayload.length > 0 ? { meta_data: acfMetaPayload } : {}),
       }),
     });
@@ -853,13 +976,16 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
       companionProductIds.length > 0
         ? ` Articoli collegati aggiornati con ${updatedCrossSellIds.length} cross-sell totali.`
         : '';
+    const locationTagMessage = selectedLocationTagId
+      ? ` Tag location aggiornato: ${selectedExtraScenarioLocation}.`
+      : '';
     const occasionMessage = ` Campo ACF occasioni d'uso aggiornato con ${occasioneDusoValues.length} valori.`;
 
     const message = `${
       syncMode === 'keep-existing'
         ? 'Sincronizzazione completata mantenendo anche le immagini gia presenti in galleria.'
         : 'Sincronizzazione completata sostituendo la galleria con il nuovo set.'
-    } Galleria prodotto aggiornata con ${productImagesPayload.length} immagini e ${updatedVariationIds.length} varianti collegate.${crossSellMessage}${occasionMessage}`;
+    } Galleria prodotto aggiornata con ${productImagesPayload.length} immagini e ${updatedVariationIds.length} varianti collegate.${crossSellMessage}${locationTagMessage}${occasionMessage}`;
 
     await updateJob(jobId, {
       status: 'completed',
@@ -882,13 +1008,16 @@ export async function POST(req: Request) {
   const body = (await req.json()) as SyncRequest;
   const job = await createJob();
 
-  void runSyncJob(job.id, req, body);
+  await runSyncJob(job.id, req, body);
+  const finalJob = (await readJob(job.id)) || job;
 
   return NextResponse.json({
-    jobId: job.id,
-    status: job.status,
-    progress: job.progress,
-    phase: job.phase,
+    jobId: finalJob.id,
+    status: finalJob.status,
+    progress: finalJob.progress,
+    phase: finalJob.phase,
+    message: finalJob.message,
+    result: finalJob.result,
   });
 }
 

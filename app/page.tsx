@@ -60,6 +60,8 @@ type WooSyncMode = 'replace' | 'keep-existing';
 type ProductProgressFilter = 'all' | 'todo' | 'in-progress' | 'completed';
 type ManualProductStatus = ProductProgressFilter | 'auto';
 type CompanionRole = string;
+type ExtraScenarioLocationKind = 'urban' | 'extra-urban';
+type ExtraScenarioContextKind = ExtraScenarioLocationKind | 'dedicated';
 type ProductSession = {
   selectedSourceImages: SelectedSourceImage[];
   manualSourceImages: string[];
@@ -117,16 +119,27 @@ const sessionStoreName = 'generated-results';
 const settingsDbName = 'futuria-settings-db';
 const ambientazioniStoreName = 'ambientazioni-references';
 const productsCacheStorageKey = 'futuria-products-cache';
+const urbanExtraScenarioLocationOptions = [
+  { label: 'Centro di Milano', kind: 'urban' as const },
+  { label: 'Centro di Roma', kind: 'urban' as const },
+  { label: 'Centro di Firenze', kind: 'urban' as const },
+  { label: 'Centro di Venezia', kind: 'urban' as const },
+  { label: 'Centro di Napoli', kind: 'urban' as const },
+  { label: 'Centro di Torino', kind: 'urban' as const },
+  { label: 'Centro di Verona', kind: 'urban' as const },
+  { label: 'Centro di Bologna', kind: 'urban' as const },
+];
+const extraUrbanExtraScenarioLocationOptions = [
+  { label: 'Lago di Como', kind: 'extra-urban' as const },
+  { label: 'Colline del Chianti', kind: 'extra-urban' as const },
+  { label: 'Dolomiti', kind: 'extra-urban' as const },
+  { label: 'Riviera ligure', kind: 'extra-urban' as const },
+];
 const extraScenarioLocationOptions = [
-  'Centro di Milano',
-  'Centro di Roma',
-  'Centro di Firenze',
-  'Centro di Venezia',
-  'Centro di Napoli',
-  'Centro di Torino',
-  'Centro di Verona',
-  'Centro di Bologna',
-] as const;
+  ...urbanExtraScenarioLocationOptions,
+  ...extraUrbanExtraScenarioLocationOptions,
+];
+const defaultExtraScenarioLocation = urbanExtraScenarioLocationOptions[0].label;
 const defaultStudioSettings: AmbientazioneSetting[] = [
   { id: 'default-studio-bianco', label: 'Studio sfondo bianco', hasReferenceImage: false },
   { id: 'default-studio-caldo', label: 'Studio sfondo neutro caldo', hasReferenceImage: false },
@@ -150,6 +163,87 @@ const defaultAmbientazioniCollection: AmbientazioneCollection = {
   studio: defaultStudioSettings,
   realLife: defaultRealLifeSettings,
 };
+
+function normalizeScenarioToken(value: string) {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function getExtraScenarioLocationOption(locationLabel: string | null | undefined) {
+  if (!locationLabel) {
+    return null;
+  }
+
+  return extraScenarioLocationOptions.find((option) => option.label === locationLabel) || null;
+}
+
+function coerceExtraScenarioLocationLabel(locationLabel: string | null | undefined) {
+  return getExtraScenarioLocationOption(locationLabel)?.label || defaultExtraScenarioLocation;
+}
+
+function getExtraScenarioContextKind(scenarioLabel: string): ExtraScenarioContextKind {
+  const normalizedLabel = normalizeScenarioToken(scenarioLabel);
+
+  if (
+    normalizedLabel.includes('passeggiata con mamma e papa') ||
+    normalizedLabel.includes('gelato con gli amici') ||
+    normalizedLabel.includes('pomeriggio al museo')
+  ) {
+    return 'urban';
+  }
+
+  if (
+    normalizedLabel.includes('weekend al lago') ||
+    normalizedLabel.includes('picnic al parco')
+  ) {
+    return 'extra-urban';
+  }
+
+  return 'dedicated';
+}
+
+function buildExtraScenarioLocationPrompt(scenarioLabel: string, locationLabel: string) {
+  const scenarioKind = getExtraScenarioContextKind(scenarioLabel);
+  const locationOption = getExtraScenarioLocationOption(locationLabel);
+
+  if (!locationOption) {
+    return `Keep this ambientazione in a naturally coherent Italian setting that fits "${scenarioLabel}".`;
+  }
+
+  if (scenarioKind === 'dedicated') {
+    return `This ambientazione should use its own naturally coherent setting for "${scenarioLabel}". Do not force the selected iconic location (${locationLabel}) into this scene.`;
+  }
+
+  if (locationOption.kind === scenarioKind) {
+    return `Set this ambientazione in ${locationLabel}, using recognizable but tasteful spatial cues and atmosphere coherent with ${locationLabel}.`;
+  }
+
+  return `The selected iconic location (${locationLabel}) is not compatible with "${scenarioLabel}". Do not mix them. Ignore ${locationLabel} for this shot and place the scene in a naturally coherent ${scenarioKind === 'urban' ? 'urban Italian' : 'extra-urban Italian'} setting that fits "${scenarioLabel}".`;
+}
+
+function describeExtraScenarioLocationUsage(scenarioLabel: string, locationLabel: string) {
+  const scenarioKind = getExtraScenarioContextKind(scenarioLabel);
+  const locationOption = getExtraScenarioLocationOption(locationLabel);
+
+  if (!locationOption) {
+    return 'Usa un contesto dedicato coerente con la scena';
+  }
+
+  if (scenarioKind === 'dedicated') {
+    return 'Usa un contesto dedicato, senza forzare la location iconica';
+  }
+
+  if (locationOption.kind === scenarioKind) {
+    return `Usa ${locationLabel}`;
+  }
+
+  return `Ignora ${locationLabel} e usa un contesto ${scenarioKind === 'urban' ? 'urbano' : 'extra urbano'} coerente`;
+}
+
 function buildProductSessionKey(projectId: string, productId: number) {
   return `futuria-product-session-${projectId}-${productId}`;
 }
@@ -350,32 +444,6 @@ async function listGeneratedProductIdsFromDb(projectId: string) {
   });
 }
 
-async function readAllGeneratedSessionsFromDb() {
-  const db = await openSessionDb();
-
-  return new Promise<Record<string, GeneratedResult[]>>((resolve, reject) => {
-    const transaction = db.transaction(sessionStoreName, 'readonly');
-    const store = transaction.objectStore(sessionStoreName);
-    const request = store.getAll();
-
-    request.onsuccess = () => {
-      const records = (request.result || []) as Array<{ sessionKey: string; results: GeneratedResult[] }>;
-      resolve(
-        Object.fromEntries(
-          records
-            .filter(
-              (record) =>
-                typeof record.sessionKey === 'string' &&
-                Array.isArray(record.results)
-            )
-            .map((record) => [record.sessionKey, record.results])
-        )
-      );
-    };
-    request.onerror = () => reject(request.error);
-  });
-}
-
 function getDataUrlByteSize(dataUrl: string) {
   const base64 = dataUrl.split(',')[1] || '';
   const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
@@ -437,6 +505,96 @@ async function optimizeGeneratedImage(dataUrl: string, maxBytes = 2_400_000) {
   }
 
   return bestCandidate;
+}
+
+async function convertImageToJpegForWooSync(dataUrl: string) {
+  if (!dataUrl.startsWith('data:image/')) {
+    return dataUrl;
+  }
+
+  const sourceImage = await loadBrowserImage(dataUrl);
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+
+  if (!context) {
+    return dataUrl;
+  }
+
+  canvas.width = sourceImage.naturalWidth;
+  canvas.height = sourceImage.naturalHeight;
+  context.fillStyle = '#ffffff';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(sourceImage, 0, 0, canvas.width, canvas.height);
+
+  return canvas.toDataURL('image/jpeg', 0.94);
+}
+
+async function uploadWooSyncImageReference(
+  projectId: string,
+  resultKey: string,
+  dataUrl: string
+) {
+  if (!dataUrl.startsWith('data:image/')) {
+    return dataUrl;
+  }
+
+  const response = await fetch('/api/settings/reference-image', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      projectId,
+      settingId: resultKey,
+      namespace: 'woo-sync-client',
+      dataUrl,
+    }),
+  });
+
+  const rawBody = await response.text();
+  let parsed: { url?: string; error?: string } = {};
+
+  if (rawBody) {
+    try {
+      parsed = JSON.parse(rawBody) as { url?: string; error?: string };
+    } catch {
+      throw new Error(rawBody.slice(0, 240));
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(parsed.error || 'Upload temporaneo immagini per WooCommerce fallito.');
+  }
+
+  return parsed.url || dataUrl;
+}
+
+async function createTinySessionThumbnail(dataUrl: string) {
+  if (!dataUrl.startsWith('data:image/')) {
+    return dataUrl;
+  }
+
+  const sourceImage = await loadBrowserImage(dataUrl);
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+
+  if (!context) {
+    return dataUrl;
+  }
+
+  let width = sourceImage.naturalWidth;
+  let height = sourceImage.naturalHeight;
+  const maxDimension = 220;
+
+  if (Math.max(width, height) > maxDimension) {
+    const ratio = maxDimension / Math.max(width, height);
+    width = Math.max(1, Math.round(width * ratio));
+    height = Math.max(1, Math.round(height * ratio));
+  }
+
+  canvas.width = width;
+  canvas.height = height;
+  context.drawImage(sourceImage, 0, 0, width, height);
+
+  return canvas.toDataURL('image/webp', 0.45);
 }
 
 function LoadingCard({ label }: { label: string }) {
@@ -605,6 +763,25 @@ async function saveRemoteProductSession(
   session: ProductSession,
   generatedResults: GeneratedResult[]
 ) {
+  const remoteSafeResults = await Promise.all(
+    generatedResults.map(async (result) => {
+      if (typeof result.url !== 'string' || result.url.length === 0) {
+        return null;
+      }
+
+      if (result.url.startsWith('data:image/')) {
+        return {
+          ...result,
+          url: await createTinySessionThumbnail(result.url),
+        };
+      }
+
+      return result;
+    })
+  ).then((results) =>
+    results.filter((result): result is GeneratedResult => Boolean(result))
+  );
+
   try {
     await fetch('/api/session-state', {
       method: 'POST',
@@ -613,7 +790,7 @@ async function saveRemoteProductSession(
         projectId,
         productId,
         session,
-        generatedResults,
+        generatedResults: remoteSafeResults,
       }),
     });
   } catch {
@@ -726,7 +903,7 @@ export default function Home() {
   const [companionPickerTarget, setCompanionPickerTarget] = useState<1 | 2>(1);
   const [selectedAdditionalScenarios, setSelectedAdditionalScenarios] = useState<string[]>([]);
   const [selectedExtraScenarioLocation, setSelectedExtraScenarioLocation] = useState<string>(
-    extraScenarioLocationOptions[0]
+    defaultExtraScenarioLocation
   );
   const [activeTab, setActiveTab] = useState<ActiveTab>('products');
   const [generatedResults, setGeneratedResults] = useState<GeneratedResult[]>([]);
@@ -746,6 +923,7 @@ export default function Home() {
   const [wooSyncPhase, setWooSyncPhase] = useState<string | null>(null);
   const [wooSyncMessage, setWooSyncMessage] = useState<string | null>(null);
   const [showWooSyncCompleteModal, setShowWooSyncCompleteModal] = useState(false);
+  const [showWooSyncErrorModal, setShowWooSyncErrorModal] = useState(false);
   const [lightboxResult, setLightboxResult] = useState<GeneratedResult | null>(null);
   const [openRegenerationKey, setOpenRegenerationKey] = useState<string | null>(null);
   const [regenerationDrafts, setRegenerationDrafts] = useState<Record<string, string>>({});
@@ -1083,7 +1261,7 @@ export default function Home() {
       secondaryCompanionFit: '',
       secondaryCompanionLength: '',
       selectedAdditionalScenarios: [],
-      selectedExtraScenarioLocation: extraScenarioLocationOptions[0],
+      selectedExtraScenarioLocation: defaultExtraScenarioLocation,
       generatedDescriptionHtml: '',
       generatedShortDescriptionHtml: '',
       acfValues: buildInitialAcfValues(product),
@@ -1209,7 +1387,7 @@ export default function Home() {
     setCompanionPickerTarget(1);
     setSelectedAdditionalScenarios(nextState.selectedAdditionalScenarios || []);
     setSelectedExtraScenarioLocation(
-      nextState.selectedExtraScenarioLocation || extraScenarioLocationOptions[0]
+      coerceExtraScenarioLocationLabel(nextState.selectedExtraScenarioLocation)
     );
     setGeneratedDescriptionHtml(nextState.generatedDescriptionHtml || '');
     setGeneratedShortDescriptionHtml(nextState.generatedShortDescriptionHtml || '');
@@ -1770,9 +1948,6 @@ export default function Home() {
         ])
       );
 
-      const localGeneratedResultsBySession = await readAllGeneratedSessionsFromDb().catch(
-        () => ({}) as Record<string, GeneratedResult[]>
-      );
       const localGeneratedProductIdsByProject = Object.fromEntries(
         await Promise.all(
           projectIds.map(async (refProjectId) => {
@@ -1824,12 +1999,11 @@ export default function Home() {
 
       await Promise.all(
         localProductSessions.map(async (entry) => {
-          const sessionKey = buildProductSessionKey(entry.projectId, entry.productId);
           await saveRemoteProductSession(
             entry.projectId,
             entry.productId,
             entry.session,
-            localGeneratedResultsBySession[sessionKey] || []
+            []
           );
         })
       );
@@ -2618,11 +2792,52 @@ export default function Home() {
 
     setIsSyncingWoo(true);
     setShowWooSyncCompleteModal(false);
+    setShowWooSyncErrorModal(false);
     setWooSyncProgress(0);
     setWooSyncPhase('Avvio sincronizzazione');
     setWooSyncMessage(null);
 
+    const visualSteps = [
+      { progress: 8, phase: 'Preparo file compatibili' },
+      { progress: 22, phase: 'Esporto immagini' },
+      { progress: 38, phase: 'Leggo prodotto e varianti' },
+      { progress: 54, phase: 'Carico nuovi asset media' },
+      { progress: 72, phase: 'Aggiorno galleria e testi prodotto' },
+      { progress: 88, phase: 'Aggiorno varianti colore' },
+    ];
+    let visualStepIndex = -1;
+    let visualProgressTimer: number | null = null;
+
+    const applyVisualStep = () => {
+      if (visualStepIndex >= visualSteps.length - 1) {
+        return;
+      }
+
+      visualStepIndex += 1;
+      const step = visualSteps[visualStepIndex];
+      setWooSyncProgress((prev) => Math.max(prev, step.progress));
+      setWooSyncPhase((current) =>
+        current === 'Errore' || current === 'Completata' ? current : step.phase
+      );
+    };
+
     try {
+      const syncReadyResults = await Promise.all(
+        syncResults.map(async (result) => ({
+          ...result,
+          url: await uploadWooSyncImageReference(
+            projectId,
+            result.key,
+            await convertImageToJpegForWooSync(result.url)
+          ),
+        }))
+      );
+
+      applyVisualStep();
+      visualProgressTimer = window.setInterval(() => {
+        applyVisualStep();
+      }, 1400);
+
       const res = await fetch('/api/sync-woocommerce', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2630,26 +2845,55 @@ export default function Home() {
           projectName,
           productId: selectedProduct.id,
           productName: selectedProduct.name,
-          generatedResults: syncResults,
+          generatedResults: syncReadyResults,
           productDescriptionHtml: generatedDescriptionHtml,
           productShortDescriptionHtml: generatedShortDescriptionHtml,
           acfValues,
           selectedAdditionalScenarioLabels: selectedAdditionalScenarioSettings.map(
             (scenario) => scenario.label
           ),
+          selectedExtraScenarioLocation:
+            selectedAdditionalScenarioSettings.length > 0 ? selectedExtraScenarioLocation : '',
           companionProductIds: [companionProductId, secondaryCompanionProductId].filter(
             (value): value is number => Boolean(value)
           ),
           syncMode: wooSyncMode,
         }),
       });
-
-      const data = (await res.json()) as {
+      const rawSyncBody = await res.text();
+      let data: {
         jobId?: string;
         error?: string;
         progress?: number;
         phase?: string;
-      };
+        status?: 'queued' | 'running' | 'completed' | 'failed';
+        message?: string | null;
+      } = {};
+
+      if (rawSyncBody) {
+        try {
+          data = JSON.parse(rawSyncBody) as typeof data;
+        } catch {
+          const normalizedBody = rawSyncBody.toLowerCase();
+          if (
+            normalizedBody.includes('request entity too large') ||
+            normalizedBody.includes('payload too large')
+          ) {
+            throw new Error(
+              'Il set immagini da sincronizzare e troppo pesante per il server. Riduci le immagini incluse oppure riprova: le immagini vengono ora caricate in modo progressivo, ma questa richiesta ha ancora superato il limite.'
+            );
+          }
+
+          throw new Error(
+            `Sincronizzazione WooCommerce fallita: ${rawSyncBody.slice(0, 220)}`
+          );
+        }
+      }
+
+      if (visualProgressTimer) {
+        window.clearInterval(visualProgressTimer);
+        visualProgressTimer = null;
+      }
 
       if (!res.ok || !data.jobId) {
         throw new Error(data.error || 'Sincronizzazione WooCommerce fallita');
@@ -2657,6 +2901,49 @@ export default function Home() {
 
       setWooSyncProgress(data.progress || 0);
       setWooSyncPhase(data.phase || 'In coda');
+
+      if (data.status === 'completed') {
+        setSyncedProductIds((prev) =>
+          prev.includes(selectedProduct.id) ? prev : [...prev, selectedProduct.id]
+        );
+        const syncedCover =
+          galleryResults.find((result) => result.pose === 'In Action') ||
+          previewResult ||
+          syncResults[0] ||
+          null;
+
+        if (syncedCover) {
+          setProducts((prev) =>
+            prev.map((product) =>
+              product.id === selectedProduct.id
+                ? {
+                    ...product,
+                    image: syncedCover.url,
+                    images: [syncedCover.url, ...product.images.filter((image) => image !== syncedCover.url)],
+                  }
+                : product
+            )
+          );
+          setSelectedProduct((prev) =>
+            prev && prev.id === selectedProduct.id
+              ? {
+                  ...prev,
+                  image: syncedCover.url,
+                  images: [syncedCover.url, ...prev.images.filter((image) => image !== syncedCover.url)],
+                }
+              : prev
+          );
+        }
+        setWooSyncProgress(100);
+        setWooSyncPhase('Completata');
+        setWooSyncMessage(data.message || 'Sincronizzazione completata.');
+        setShowWooSyncCompleteModal(true);
+        return;
+      }
+
+      if (data.status === 'failed') {
+        throw new Error(data.message || 'Sincronizzazione WooCommerce fallita');
+      }
 
       while (true) {
         await new Promise((resolve) => window.setTimeout(resolve, 900));
@@ -2722,9 +3009,13 @@ export default function Home() {
         }
       }
     } catch (error: unknown) {
+      if (visualProgressTimer) {
+        window.clearInterval(visualProgressTimer);
+      }
       setWooSyncProgress(100);
       setWooSyncPhase('Errore');
       setWooSyncMessage(error instanceof Error ? error.message : 'Errore sconosciuto');
+      setShowWooSyncErrorModal(true);
     } finally {
       setIsSyncingWoo(false);
       window.setTimeout(() => {
@@ -2857,6 +3148,9 @@ export default function Home() {
           args.kind === 'extra'
             ? 'For special-occasion lifestyle scenes, the model must be visibly in action and doing something natural that clearly fits the environment, moment, and space. Avoid static standing poses in these images.'
             : '',
+          args.kind === 'extra'
+            ? 'Never mix urban city landmarks with lake, park, countryside, seaside, or mountain scenery. Never mix extra-urban landscape cues into city scenes.'
+            : '',
           normalizedRequestPose.includes('action') || args.kind === 'extra'
             ? 'The model should look moderately happy, with a soft natural smile and a pleasant positive expression.'
             : 'Even in catalog poses, the model should look gently happy and approachable, with a visible soft natural smile rather than a neutral expression.',
@@ -2874,7 +3168,7 @@ export default function Home() {
           'If there is any conflict between the reference model appearance and the written configuration, always obey the written configuration and ignore the reference model appearance.',
           `Scenario label: ${scenarioLabel}.`,
           args.kind === 'extra'
-            ? `Set this ambientazione in ${selectedExtraScenarioLocation}, using recognizable spatial cues and atmosphere coherent with ${selectedExtraScenarioLocation}.`
+            ? buildExtraScenarioLocationPrompt(scenarioLabel, selectedExtraScenarioLocation)
             : '',
           expandShootingPrompt(scenarioLabel),
           scenarioReferenceUrl
@@ -4331,24 +4625,89 @@ export default function Home() {
                         <p className="mb-3 text-sm text-slate-500">
                           Seleziona una o piu ambientazioni aggiuntive. Dopo l&apos;approvazione, l&apos;AI generera immagini extra separate da quelle del set principale.
                         </p>
-                        <div className="mb-3 grid gap-2">
-                          <div className="text-[10px] font-black uppercase tracking-wide text-[#4C6583]">
+                        <div className="mb-4 rounded-2xl border border-[#D7D9DD] bg-white p-3">
+                          <div className="mb-2 text-[10px] font-black uppercase tracking-wide text-[#4C6583]">
                             Location iconica per le ambientazioni extra
                           </div>
-                          <select
-                            value={selectedExtraScenarioLocation}
-                            onChange={(event) => setSelectedExtraScenarioLocation(event.target.value)}
-                            disabled={isBusy}
-                            className="rounded-xl border border-[#D7D9DD] bg-white px-3 py-2 text-sm font-bold text-[#103D66]"
-                          >
-                            {extraScenarioLocationOptions.map((location) => (
-                              <option key={location} value={location}>
-                                {location}
-                              </option>
-                            ))}
-                          </select>
+                          <p className="mb-3 text-xs text-slate-500">
+                            La location iconica si applica solo alle ambientazioni compatibili. Le scene non compatibili useranno automaticamente un contesto coerente, senza mescolare città e paesaggi extra urbani.
+                          </p>
+                          <div className="space-y-3">
+                            <div>
+                              <div className="mb-2 text-[10px] font-black uppercase tracking-wide text-[#6C7D92]">
+                                Location iconiche urbane
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {urbanExtraScenarioLocationOptions.map((location) => (
+                                  <button
+                                    key={location.label}
+                                    type="button"
+                                    onClick={() => setSelectedExtraScenarioLocation(location.label)}
+                                    disabled={isBusy}
+                                    className={`rounded-full px-3 py-2 text-xs font-black transition-all ${
+                                      selectedExtraScenarioLocation === location.label
+                                        ? 'bg-[#103D66] text-white'
+                                        : 'border border-[#D7D9DD] bg-[#F8FAFB] text-[#103D66]'
+                                    } ${isBusy ? 'opacity-60' : ''}`}
+                                  >
+                                    {location.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="rounded-2xl border border-dashed border-[#D7D9DD] bg-[#F8FAFB] p-3">
+                              <div className="mb-2 text-[10px] font-black uppercase tracking-wide text-[#6C7D92]">
+                                Location iconiche extra urbane
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {extraUrbanExtraScenarioLocationOptions.map((location) => (
+                                  <button
+                                    key={location.label}
+                                    type="button"
+                                    onClick={() => setSelectedExtraScenarioLocation(location.label)}
+                                    disabled={isBusy}
+                                    className={`rounded-full px-3 py-2 text-xs font-black transition-all ${
+                                      selectedExtraScenarioLocation === location.label
+                                        ? 'bg-[#6DA34D] text-white'
+                                        : 'border border-[#D7D9DD] bg-white text-[#284E1D]'
+                                    } ${isBusy ? 'opacity-60' : ''}`}
+                                  >
+                                    {location.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                          {selectedAdditionalScenarios.length > 0 ? (
+                            <div className="mt-4 rounded-2xl border border-[#D7D9DD] bg-[#F8FAFB] p-3">
+                              <div className="mb-2 text-[10px] font-black uppercase tracking-wide text-[#4C6583]">
+                                Come verra applicata la location selezionata
+                              </div>
+                              <div className="space-y-2">
+                                {selectedAdditionalScenarios.map((scenarioId) => {
+                                  const scenario = realLifeSettings.find((entry) => entry.id === scenarioId);
+                                  if (!scenario) {
+                                    return null;
+                                  }
+
+                                  return (
+                                    <div key={scenario.id} className="flex items-start justify-between gap-3 rounded-xl border border-[#E5E7EB] bg-white px-3 py-2 text-xs">
+                                      <span className="font-bold text-[#103D66]">{scenario.label}</span>
+                                      <span className="text-right text-slate-500">
+                                        {describeExtraScenarioLocationUsage(scenario.label, selectedExtraScenarioLocation)}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ) : null}
                         </div>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="border-t border-[#D7D9DD] pt-4">
+                          <div className="mb-2 text-[10px] font-black uppercase tracking-wide text-[#4C6583]">
+                            Seleziona le ambientazioni extra
+                          </div>
+                          <div className="flex flex-wrap gap-2">
                           {realLifeSettings.map((scenario) => (
                             <button
                               key={scenario.id}
@@ -4364,6 +4723,7 @@ export default function Home() {
                               {scenario.label}
                             </button>
                           ))}
+                          </div>
                         </div>
                       </div>
                       <button onClick={approveAndGenerateAll} disabled={isBusy || isProductionComplete} className={`flex w-full items-center justify-center gap-3 rounded-2xl px-4 py-4 text-sm font-black text-white ${isBusy || isProductionComplete ? 'bg-slate-400' : 'bg-[#6DA34D]'}`}>
@@ -4502,9 +4862,12 @@ export default function Home() {
                 <p className="mb-4 text-sm text-slate-500">
                   Qui trovi solo i campi ACF applicabili a questo prodotto. Sono gia valorizzati con i dati attuali presenti in WooCommerce e puoi modificarli liberamente prima della sincronizzazione.
                 </p>
-                {selectedProduct && selectedProduct.acfFields.length > 0 ? (
+                {selectedProduct &&
+                selectedProduct.acfFields.filter((field) => field.name !== 'occasione_duso').length > 0 ? (
                   <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-                    {selectedProduct.acfFields.map((field) => (
+                    {selectedProduct.acfFields
+                      .filter((field) => field.name !== 'occasione_duso')
+                      .map((field) => (
                       <div
                         key={field.key}
                         className={`rounded-2xl border border-[#D7D9DD] bg-white p-4 ${
@@ -4680,6 +5043,38 @@ export default function Home() {
                 Vai a tutti i prodotti
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showWooSyncErrorModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#103D66]/60 p-4"
+          onClick={() => setShowWooSyncErrorModal(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center gap-3">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-red-100 text-red-600">
+                <XCircle size={22} />
+              </span>
+              <div>
+                <div className="text-base font-black text-[#103D66]">Sincronizzazione fallita</div>
+                <div className="text-sm text-slate-500">WooCommerce non ha accettato il set immagini o l&apos;aggiornamento del prodotto.</div>
+              </div>
+            </div>
+            <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {wooSyncMessage || 'Errore sconosciuto durante la sincronizzazione.'}
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowWooSyncErrorModal(false)}
+              className="flex w-full items-center justify-center rounded-2xl bg-[#103D66] px-4 py-3 text-sm font-black text-white"
+            >
+              Chiudi
+            </button>
           </div>
         </div>
       )}
