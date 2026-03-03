@@ -97,9 +97,7 @@ async function resolveAcfExportPath() {
     }
   }
 
-  throw new Error(
-    'Export ACF non trovato. Imposta ACF_EXPORT_PATH oppure salva il file in data/acf-export-2026-03-02.json.'
-  );
+  return null;
 }
 
 async function readAcfExportGroups() {
@@ -108,11 +106,22 @@ async function readAcfExportGroups() {
   }
 
   const exportPath = await resolveAcfExportPath();
-  const raw = await readFile(exportPath, 'utf8');
-  const parsed = JSON.parse(raw) as AcfExportGroup[];
 
-  acfExportCache = Array.isArray(parsed) ? parsed : [];
-  return acfExportCache;
+  if (!exportPath) {
+    acfExportCache = [];
+    return acfExportCache;
+  }
+
+  try {
+    const raw = await readFile(exportPath, 'utf8');
+    const parsed = JSON.parse(raw) as AcfExportGroup[];
+
+    acfExportCache = Array.isArray(parsed) ? parsed : [];
+    return acfExportCache;
+  } catch {
+    acfExportCache = [];
+    return acfExportCache;
+  }
 }
 
 function buildCategoryTokens(categories: AcfProductCategory[]) {

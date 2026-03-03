@@ -4,6 +4,7 @@ import {
   normalizeAcfValue,
   type AcfFieldDefinition,
 } from '@/lib/server/acf-fields';
+import { ensureLegacyLocalDataMigrated } from '@/lib/server/legacy-storage-migration';
 import { getResolvedWooCommerceSettings } from '@/lib/server/woocommerce-settings';
 
 type WooCommerceAttribute = {
@@ -47,6 +48,8 @@ type WooCommerceProduct = {
 
 export async function GET(req: Request) {
   try {
+    await ensureLegacyLocalDataMigrated();
+
     const url = new URL(req.url);
     const forceFresh = url.searchParams.get('fresh') === '1';
     const settings = await getResolvedWooCommerceSettings();

@@ -82,6 +82,33 @@ type ProductSession = {
   activeTab: ActiveTab;
   isPreviewApproved: boolean;
 };
+type PersistedAppState = {
+  projects: Array<{ id: string; name: string }>;
+  currentProjectId: string;
+  shootingSettingsMap: Record<string, AmbientazioneCollection>;
+  shootingReferenceImagesByProject: Record<string, Record<string, string>>;
+  selectedProductByProject: Record<string, string>;
+  startedProductIdsByProject: Record<string, number[]>;
+  syncedProductIdsByProject: Record<string, number[]>;
+  generatedProductIdsByProject: Record<string, number[]>;
+  manualProductStatusesByProject: Record<string, Record<string, string>>;
+};
+
+function createDefaultPersistedAppState(): PersistedAppState {
+  return {
+    projects: [{ id: 'default', name: 'Futuria' }],
+    currentProjectId: 'default',
+    shootingSettingsMap: {
+      default: defaultAmbientazioniCollection,
+    },
+    shootingReferenceImagesByProject: {},
+    selectedProductByProject: {},
+    startedProductIdsByProject: {},
+    syncedProductIdsByProject: {},
+    generatedProductIdsByProject: {},
+    manualProductStatusesByProject: {},
+  };
+}
 
 const sessionDbName = 'futuria-session-db';
 const sessionStoreName = 'generated-results';
@@ -198,18 +225,37 @@ function openSettingsDb() {
   });
 }
 
-async function readAmbientazioneReference(projectId: string, settingId: string) {
+async function readAllAmbientazioneReferences() {
   const db = await openSettingsDb();
-  const key = `${projectId}:${settingId}`;
 
-  return new Promise<string | null>((resolve, reject) => {
+  return new Promise<Record<string, Record<string, string>>>((resolve, reject) => {
     const transaction = db.transaction(ambientazioniStoreName, 'readonly');
     const store = transaction.objectStore(ambientazioniStoreName);
-    const request = store.get(key);
+    const request = store.getAll();
 
     request.onsuccess = () => {
-      const record = request.result as { key: string; dataUrl: string } | undefined;
-      resolve(record?.dataUrl || null);
+      const records = (request.result || []) as Array<{ key: string; dataUrl: string }>;
+      const nestedMap: Record<string, Record<string, string>> = {};
+
+      for (const record of records) {
+        if (!record?.key || !record?.dataUrl) continue;
+
+        const separatorIndex = record.key.indexOf(':');
+        if (separatorIndex === -1) continue;
+
+        const refProjectId = record.key.slice(0, separatorIndex);
+        const settingId = record.key.slice(separatorIndex + 1);
+
+        if (!refProjectId || !settingId) continue;
+
+        if (!nestedMap[refProjectId]) {
+          nestedMap[refProjectId] = {};
+        }
+
+        nestedMap[refProjectId][settingId] = record.dataUrl;
+      }
+
+      resolve(nestedMap);
     };
     request.onerror = () => reject(request.error);
   });
@@ -267,6 +313,32 @@ async function listGeneratedProductIdsFromDb(projectId: string) {
         .filter((value) => Number.isInteger(value) && value > 0);
 
       resolve(Array.from(new Set(productIds)));
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function readAllGeneratedSessionsFromDb() {
+  const db = await openSessionDb();
+
+  return new Promise<Record<string, GeneratedResult[]>>((resolve, reject) => {
+    const transaction = db.transaction(sessionStoreName, 'readonly');
+    const store = transaction.objectStore(sessionStoreName);
+    const request = store.getAll();
+
+    request.onsuccess = () => {
+      const records = (request.result || []) as Array<{ sessionKey: string; results: GeneratedResult[] }>;
+      resolve(
+        Object.fromEntries(
+          records
+            .filter(
+              (record) =>
+                typeof record.sessionKey === 'string' &&
+                Array.isArray(record.results)
+            )
+            .map((record) => [record.sessionKey, record.results])
+        )
+      );
     };
     request.onerror = () => reject(request.error);
   });
@@ -446,6 +518,121 @@ function buildInitialAcfValues(product: Product) {
   ) as AcfFieldValues;
 }
 
+async function readRemoteAppState() {
+  try {
+    const res = await fetch('/api/settings/app-state', { cache: 'no-store' });
+    if (!res.ok) {
+      return createDefaultPersistedAppState();
+    }
+
+    const data = (await res.json()) as PersistedAppState;
+    return {
+      ...createDefaultPersistedAppState(),
+      ...data,
+    };
+  } catch {
+    return createDefaultPersistedAppState();
+  }
+}
+
+async function saveRemoteAppState(state: PersistedAppState) {
+  try {
+    await fetch('/api/settings/app-state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(state),
+    });
+  } catch {
+    // Keep browser state even if remote sync fails.
+  }
+}
+
+async function readRemoteProductSession(projectId: string, productId: number) {
+  try {
+    const res = await fetch(
+      `/api/session-state?projectId=${encodeURIComponent(projectId)}&productId=${encodeURIComponent(String(productId))}`,
+      { cache: 'no-store' }
+    );
+
+    if (!res.ok) {
+      return { session: {}, generatedResults: [] as GeneratedResult[] };
+    }
+
+    return (await res.json()) as {
+      session: Partial<ProductSession>;
+      generatedResults: GeneratedResult[];
+    };
+  } catch {
+    return { session: {}, generatedResults: [] as GeneratedResult[] };
+  }
+}
+
+async function saveRemoteProductSession(
+  projectId: string,
+  productId: number,
+  session: ProductSession,
+  generatedResults: GeneratedResult[]
+) {
+  try {
+    await fetch('/api/session-state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        projectId,
+        productId,
+        session,
+        generatedResults,
+      }),
+    });
+  } catch {
+    // Keep browser state even if remote sync fails.
+  }
+}
+
+function mergeAppState(localState: Partial<PersistedAppState>, remoteState: PersistedAppState) {
+  const projects =
+    localState.projects && localState.projects.length > 0
+      ? localState.projects
+      : remoteState.projects.length > 0
+        ? remoteState.projects
+        : createDefaultPersistedAppState().projects;
+
+  return {
+    ...remoteState,
+    projects,
+    currentProjectId:
+      localState.currentProjectId || remoteState.currentProjectId || createDefaultPersistedAppState().currentProjectId,
+    shootingSettingsMap: {
+      ...remoteState.shootingSettingsMap,
+      ...(localState.shootingSettingsMap || {}),
+    },
+    shootingReferenceImagesByProject: {
+      ...remoteState.shootingReferenceImagesByProject,
+      ...(localState.shootingReferenceImagesByProject || {}),
+    },
+    selectedProductByProject: {
+      ...remoteState.selectedProductByProject,
+      ...(localState.selectedProductByProject || {}),
+    },
+    startedProductIdsByProject: {
+      ...remoteState.startedProductIdsByProject,
+      ...(localState.startedProductIdsByProject || {}),
+    },
+    syncedProductIdsByProject: {
+      ...remoteState.syncedProductIdsByProject,
+      ...(localState.syncedProductIdsByProject || {}),
+    },
+    generatedProductIdsByProject: {
+      ...remoteState.generatedProductIdsByProject,
+      ...(localState.generatedProductIdsByProject || {}),
+    },
+    manualProductStatusesByProject: {
+      ...remoteState.manualProductStatusesByProject,
+      ...(localState.manualProductStatusesByProject || {}),
+    },
+  } satisfies PersistedAppState;
+}
+
 export default function Home() {
   const [products, setProducts] = useState<Product[]>([]);
   const [progressFilter, setProgressFilter] = useState<ProductProgressFilter>('all');
@@ -464,6 +651,8 @@ export default function Home() {
   const [job, setJob] = useState<Job | null>(null);
   const [projectId, setProjectId] = useState('default');
   const [projectName, setProjectName] = useState('Futuria');
+  const [persistedAppState, setPersistedAppState] = useState<PersistedAppState>(createDefaultPersistedAppState());
+  const [hasLoadedAppState, setHasLoadedAppState] = useState(false);
   const [shootingSettings, setShootingSettings] = useState<AmbientazioneCollection>(defaultAmbientazioniCollection);
   const [shootingReferenceImages, setShootingReferenceImages] = useState<Record<string, string>>({});
   const [selectedColor, setSelectedColor] = useState('');
@@ -822,8 +1011,25 @@ export default function Home() {
     const sessionKey = buildProductSessionKey(projectId, product.id);
     const selectionKey = buildProjectSelectionKey(projectId);
     const rawSession = window.localStorage.getItem(sessionKey);
+    const remoteStoredState = await readRemoteProductSession(projectId, product.id);
 
     let nextState = defaultState;
+
+    if (remoteStoredState.session && Object.keys(remoteStoredState.session).length > 0) {
+      const parsed = remoteStoredState.session as ProductSession;
+      nextState = {
+        ...defaultState,
+        ...parsed,
+        job: parsed.job || defaultState.job,
+        selectedSourceImages:
+          Array.isArray(parsed.selectedSourceImages) && parsed.selectedSourceImages.length > 0
+            ? parsed.selectedSourceImages.map((image) => ({
+                ...image,
+                mode: image.mode === 'worn' ? 'worn' : 'garment-only',
+              }))
+            : defaultState.selectedSourceImages,
+      };
+    }
 
     if (rawSession) {
       try {
@@ -845,12 +1051,13 @@ export default function Home() {
       }
     }
 
-    let storedResults: GeneratedResult[] = [];
+    let storedResults: GeneratedResult[] = remoteStoredState.generatedResults || [];
 
     try {
-      storedResults = await readGeneratedResultsFromDb(sessionKey);
+      const localResults = await readGeneratedResultsFromDb(sessionKey);
+      storedResults = localResults.length > 0 ? localResults : storedResults;
     } catch {
-      storedResults = [];
+      storedResults = remoteStoredState.generatedResults || [];
     }
 
     setSelectedSourceImages(nextState.selectedSourceImages);
@@ -911,6 +1118,13 @@ export default function Home() {
     setGeneratedResults(storedResults);
     setIsPreviewApproved(Boolean(nextState.isPreviewApproved));
     window.localStorage.setItem(selectionKey, String(product.id));
+    setPersistedAppState((prev) => ({
+      ...prev,
+      selectedProductByProject: {
+        ...prev.selectedProductByProject,
+        [projectId]: String(product.id),
+      },
+    }));
     setHasLoadedSession(true);
   }, [projectId, studioSettings]);
 
@@ -1160,7 +1374,9 @@ export default function Home() {
   useEffect(() => {
     if (products.length === 0 || selectedProduct) return;
 
-    const rawSelectedProductId = window.localStorage.getItem(buildProjectSelectionKey(projectId));
+    const rawSelectedProductId =
+      persistedAppState.selectedProductByProject[projectId] ||
+      window.localStorage.getItem(buildProjectSelectionKey(projectId));
 
     if (!rawSelectedProductId) {
       setHasLoadedSession(true);
@@ -1175,47 +1391,17 @@ export default function Home() {
     }
 
     void loadProductState(restoredProduct);
-  }, [loadProductState, projectId, products, selectedProduct]);
+  }, [loadProductState, persistedAppState.selectedProductByProject, projectId, products, selectedProduct]);
 
   useEffect(() => {
-    const rawShootingSettings = window.localStorage.getItem('futuria-shooting-settings');
-
-    if (!rawShootingSettings) {
-      setShootingSettings(defaultAmbientazioniCollection);
-      return;
-    }
-
-    try {
-      const parsed = normalizeAmbientazioniMap(rawShootingSettings);
-      const nextSettings = parsed[projectId];
-      setShootingSettings(nextSettings || defaultAmbientazioniCollection);
-    } catch {
-      setShootingSettings(defaultAmbientazioniCollection);
-    }
-  }, [projectId]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadScenarioReferences = async () => {
-      const allSettings = [...shootingSettings.studio, ...shootingSettings.realLife];
-      const entries = await Promise.all(
-        allSettings.map(async (setting) => [setting.id, await readAmbientazioneReference(projectId, setting.id)] as const)
-      );
-
-      if (!cancelled) {
-        setShootingReferenceImages(
-          Object.fromEntries(entries.filter((entry): entry is readonly [string, string] => Boolean(entry[1])))
-        );
-      }
-    };
-
-    void loadScenarioReferences();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [projectId, shootingSettings]);
+    const nextSettings = persistedAppState.shootingSettingsMap[projectId];
+    setShootingSettings(nextSettings || defaultAmbientazioniCollection);
+    setShootingReferenceImages(persistedAppState.shootingReferenceImagesByProject[projectId] || {});
+  }, [
+    persistedAppState.shootingReferenceImagesByProject,
+    persistedAppState.shootingSettingsMap,
+    projectId,
+  ]);
 
   useEffect(() => {
     if (!job) return;
@@ -1236,48 +1422,44 @@ export default function Home() {
   }, [realLifeSettings]);
 
   useEffect(() => {
-    const rawStartedProducts = window.localStorage.getItem(`futuria-started-products-${projectId}`);
-    const rawSyncedProducts = window.localStorage.getItem(`futuria-synced-products-${projectId}`);
-    const rawManualStatuses = window.localStorage.getItem(`futuria-manual-product-statuses-${projectId}`);
-
-    try {
-      const parsedStarted = rawStartedProducts ? (JSON.parse(rawStartedProducts) as number[]) : [];
-      setStartedProductIds(Array.isArray(parsedStarted) ? parsedStarted : []);
-    } catch {
-      setStartedProductIds([]);
-    }
-
-    try {
-      const parsedSynced = rawSyncedProducts ? (JSON.parse(rawSyncedProducts) as number[]) : [];
-      setSyncedProductIds(Array.isArray(parsedSynced) ? parsedSynced : []);
-    } catch {
-      setSyncedProductIds([]);
-    }
-
-    try {
-      const parsedManual = rawManualStatuses ? (JSON.parse(rawManualStatuses) as Record<string, ManualProductStatus>) : {};
-      const normalizedManual = Object.fromEntries(
-        Object.entries(parsedManual).map(([productId, status]) => [Number(productId), status])
-      ) as Record<number, ManualProductStatus>;
-      setManualProductStatuses(normalizedManual);
-    } catch {
-      setManualProductStatuses({});
-    }
-  }, [projectId]);
+    setStartedProductIds(persistedAppState.startedProductIdsByProject[projectId] || []);
+    setSyncedProductIds(persistedAppState.syncedProductIdsByProject[projectId] || []);
+    setManualProductStatuses(
+      Object.fromEntries(
+        Object.entries(persistedAppState.manualProductStatusesByProject[projectId] || {}).map(
+          ([productId, status]) => [Number(productId), status as ManualProductStatus]
+        )
+      ) as Record<number, ManualProductStatus>
+    );
+  }, [
+    persistedAppState.manualProductStatusesByProject,
+    persistedAppState.startedProductIdsByProject,
+    persistedAppState.syncedProductIdsByProject,
+    projectId,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
 
     const loadGeneratedProductIds = async () => {
       try {
-        const ids = await listGeneratedProductIdsFromDb(projectId);
+        const localIds = await listGeneratedProductIdsFromDb(projectId);
+        const remoteIds = persistedAppState.generatedProductIdsByProject[projectId] || [];
+        const ids = Array.from(new Set([...remoteIds, ...localIds]));
 
         if (!cancelled) {
           setGeneratedProductIds(ids);
+          setPersistedAppState((prev) => ({
+            ...prev,
+            generatedProductIdsByProject: {
+              ...prev.generatedProductIdsByProject,
+              [projectId]: ids,
+            },
+          }));
         }
       } catch {
         if (!cancelled) {
-          setGeneratedProductIds([]);
+          setGeneratedProductIds(persistedAppState.generatedProductIdsByProject[projectId] || []);
         }
       }
     };
@@ -1287,7 +1469,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [projectId, products.length]);
+  }, [persistedAppState.generatedProductIdsByProject, projectId, products.length]);
 
   useEffect(() => {
     window.localStorage.setItem(
@@ -1349,21 +1531,165 @@ export default function Home() {
   }, [products]);
 
   useEffect(() => {
-    const rawProjects = window.localStorage.getItem('futuria-projects');
-    const rawCurrent = window.localStorage.getItem('futuria-current-project-id');
+    const loadAppState = async () => {
+      const remoteState = await readRemoteAppState();
+      const rawProjects = window.localStorage.getItem('futuria-projects');
+      const rawCurrent = window.localStorage.getItem('futuria-current-project-id');
+      const rawShootingSettings = window.localStorage.getItem('futuria-shooting-settings');
 
-    if (!rawProjects) {
-      return;
-    }
+      let localProjects: Array<{ id: string; name: string }> = [];
 
-    try {
-      const parsed = JSON.parse(rawProjects) as Array<{ id: string; name: string }>;
-      const safeProjects = parsed.length > 0 ? parsed : [{ id: 'default', name: 'Futuria' }];
-      const current = safeProjects.find((project) => project.id === rawCurrent) || safeProjects[0];
+      if (rawProjects) {
+        try {
+          localProjects = JSON.parse(rawProjects) as Array<{ id: string; name: string }>;
+        } catch {
+          localProjects = [];
+        }
+      }
 
+      const localSelectedProductByProject: Record<string, string> = {};
+      const localStartedProductIdsByProject: Record<string, number[]> = {};
+      const localSyncedProductIdsByProject: Record<string, number[]> = {};
+      const localManualProductStatusesByProject: Record<string, Record<string, string>> = {};
+      const localProductSessions: Array<{
+        projectId: string;
+        productId: number;
+        session: ProductSession;
+      }> = [];
+
+      for (let index = 0; index < window.localStorage.length; index += 1) {
+        const storageKey = window.localStorage.key(index);
+        if (!storageKey) continue;
+
+        if (storageKey.startsWith('futuria-current-product-')) {
+          const refProjectId = storageKey.slice('futuria-current-product-'.length);
+          const value = window.localStorage.getItem(storageKey);
+          if (refProjectId && value) {
+            localSelectedProductByProject[refProjectId] = value;
+          }
+          continue;
+        }
+
+        if (storageKey.startsWith('futuria-started-products-')) {
+          const refProjectId = storageKey.slice('futuria-started-products-'.length);
+          try {
+            const value = JSON.parse(window.localStorage.getItem(storageKey) || '[]') as number[];
+            localStartedProductIdsByProject[refProjectId] = Array.isArray(value) ? value : [];
+          } catch {
+            localStartedProductIdsByProject[refProjectId] = [];
+          }
+          continue;
+        }
+
+        if (storageKey.startsWith('futuria-synced-products-')) {
+          const refProjectId = storageKey.slice('futuria-synced-products-'.length);
+          try {
+            const value = JSON.parse(window.localStorage.getItem(storageKey) || '[]') as number[];
+            localSyncedProductIdsByProject[refProjectId] = Array.isArray(value) ? value : [];
+          } catch {
+            localSyncedProductIdsByProject[refProjectId] = [];
+          }
+          continue;
+        }
+
+        if (storageKey.startsWith('futuria-manual-product-statuses-')) {
+          const refProjectId = storageKey.slice('futuria-manual-product-statuses-'.length);
+          try {
+            const value = JSON.parse(window.localStorage.getItem(storageKey) || '{}') as Record<string, string>;
+            localManualProductStatusesByProject[refProjectId] = value;
+          } catch {
+            localManualProductStatusesByProject[refProjectId] = {};
+          }
+          continue;
+        }
+
+        if (storageKey.startsWith('futuria-product-session-')) {
+          const sessionParts = storageKey.replace('futuria-product-session-', '').split('-');
+          const productId = Number(sessionParts.pop());
+          const refProjectId = sessionParts.join('-');
+
+          if (!refProjectId || !Number.isInteger(productId) || productId <= 0) {
+            continue;
+          }
+
+          try {
+            const parsed = JSON.parse(window.localStorage.getItem(storageKey) || '{}') as ProductSession;
+            localProductSessions.push({
+              projectId: refProjectId,
+              productId,
+              session: parsed,
+            });
+          } catch {
+            // Ignore malformed saved product sessions.
+          }
+        }
+      }
+
+      const projectIds = Array.from(
+        new Set([
+          'default',
+          ...localProjects.map((project) => project.id),
+          ...Object.keys(remoteState.shootingSettingsMap || {}),
+          ...Object.keys(remoteState.shootingReferenceImagesByProject || {}),
+          ...Object.keys(remoteState.selectedProductByProject || {}),
+          ...Object.keys(localSelectedProductByProject),
+          ...Object.keys(localStartedProductIdsByProject),
+          ...Object.keys(localSyncedProductIdsByProject),
+          ...Object.keys(localManualProductStatusesByProject),
+          ...localProductSessions.map((entry) => entry.projectId),
+        ])
+      );
+
+      const localGeneratedResultsBySession = await readAllGeneratedSessionsFromDb().catch(
+        () => ({}) as Record<string, GeneratedResult[]>
+      );
+      const localGeneratedProductIdsByProject = Object.fromEntries(
+        await Promise.all(
+          projectIds.map(async (refProjectId) => {
+            const ids = await listGeneratedProductIdsFromDb(refProjectId).catch(() => []);
+            return [refProjectId, ids] as const;
+          })
+        )
+      );
+
+      const localState: Partial<PersistedAppState> = {
+        projects: localProjects,
+        currentProjectId: rawCurrent || '',
+        shootingSettingsMap: rawShootingSettings ? normalizeAmbientazioniMap(rawShootingSettings) : {},
+        shootingReferenceImagesByProject: await readAllAmbientazioneReferences().catch(() => ({})),
+        selectedProductByProject: localSelectedProductByProject,
+        startedProductIdsByProject: localStartedProductIdsByProject,
+        syncedProductIdsByProject: localSyncedProductIdsByProject,
+        generatedProductIdsByProject: localGeneratedProductIdsByProject,
+        manualProductStatusesByProject: localManualProductStatusesByProject,
+      };
+
+      const mergedState = mergeAppState(localState, remoteState);
+      const safeProjects =
+        mergedState.projects.length > 0 ? mergedState.projects : createDefaultPersistedAppState().projects;
+      const current =
+        safeProjects.find((project) => project.id === mergedState.currentProjectId) || safeProjects[0];
+
+      setPersistedAppState(mergedState);
       setProjectId(current.id);
       setProjectName(current.name);
-    } catch {}
+      setHasLoadedAppState(true);
+      void saveRemoteAppState(mergedState);
+
+      await Promise.all(
+        localProductSessions.map(async (entry) => {
+          const sessionKey = buildProductSessionKey(entry.projectId, entry.productId);
+          await saveRemoteProductSession(
+            entry.projectId,
+            entry.productId,
+            entry.session,
+            localGeneratedResultsBySession[sessionKey] || []
+          );
+        })
+      );
+    };
+
+    void loadAppState();
   }, []);
 
   useEffect(() => {
@@ -1396,8 +1722,10 @@ export default function Home() {
     };
 
     window.localStorage.setItem(sessionKey, JSON.stringify(session));
+    void saveRemoteProductSession(projectId, selectedProduct.id, session, generatedResults);
   }, [
     activeTab,
+    generatedResults,
     hasLoadedSession,
     isPreviewApproved,
     job,
@@ -1444,6 +1772,115 @@ export default function Home() {
       return prev;
     });
   }, [generatedResults, hasLoadedSession, projectId, selectedProduct]);
+
+  useEffect(() => {
+    if (!hasLoadedAppState) return;
+
+    setPersistedAppState((prev) => {
+      const existingProjects = prev.projects.length > 0 ? prev.projects : createDefaultPersistedAppState().projects;
+      const hasCurrentProject = existingProjects.some((project) => project.id === projectId);
+      const nextProjects = hasCurrentProject
+        ? existingProjects.map((project) =>
+            project.id === projectId ? { ...project, name: projectName || project.name } : project
+          )
+        : [...existingProjects, { id: projectId, name: projectName || 'Futuria' }];
+
+      return {
+        ...prev,
+        projects: nextProjects,
+        currentProjectId: projectId,
+        shootingSettingsMap: {
+          ...prev.shootingSettingsMap,
+          [projectId]: shootingSettings,
+        },
+        shootingReferenceImagesByProject: {
+          ...prev.shootingReferenceImagesByProject,
+          [projectId]: shootingReferenceImages,
+        },
+        selectedProductByProject: {
+          ...prev.selectedProductByProject,
+          ...(selectedProduct ? { [projectId]: String(selectedProduct.id) } : {}),
+        },
+        startedProductIdsByProject: {
+          ...prev.startedProductIdsByProject,
+          [projectId]: startedProductIds,
+        },
+        syncedProductIdsByProject: {
+          ...prev.syncedProductIdsByProject,
+          [projectId]: syncedProductIds,
+        },
+        generatedProductIdsByProject: {
+          ...prev.generatedProductIdsByProject,
+          [projectId]: generatedProductIds,
+        },
+        manualProductStatusesByProject: {
+          ...prev.manualProductStatusesByProject,
+          [projectId]: Object.fromEntries(
+            Object.entries(manualProductStatuses).map(([productId, status]) => [
+              String(productId),
+              status,
+            ])
+          ),
+        },
+      };
+    });
+  }, [
+    generatedProductIds,
+    hasLoadedAppState,
+    manualProductStatuses,
+    projectId,
+    projectName,
+    selectedProduct,
+    shootingReferenceImages,
+    shootingSettings,
+    startedProductIds,
+    syncedProductIds,
+  ]);
+
+  useEffect(() => {
+    if (!hasLoadedAppState) return;
+
+    window.localStorage.setItem('futuria-projects', JSON.stringify(persistedAppState.projects));
+    window.localStorage.setItem('futuria-current-project-id', persistedAppState.currentProjectId);
+    window.localStorage.setItem(
+      'futuria-shooting-settings',
+      JSON.stringify(persistedAppState.shootingSettingsMap)
+    );
+    window.localStorage.setItem(
+      `futuria-started-products-${projectId}`,
+      JSON.stringify(startedProductIds)
+    );
+    window.localStorage.setItem(
+      `futuria-synced-products-${projectId}`,
+      JSON.stringify(syncedProductIds)
+    );
+    window.localStorage.setItem(
+      `futuria-manual-product-statuses-${projectId}`,
+      JSON.stringify(manualProductStatuses)
+    );
+
+    if (persistedAppState.selectedProductByProject[projectId]) {
+      window.localStorage.setItem(
+        buildProjectSelectionKey(projectId),
+        persistedAppState.selectedProductByProject[projectId]
+      );
+    }
+
+    void saveRemoteAppState(persistedAppState);
+  }, [
+    hasLoadedAppState,
+    manualProductStatuses,
+    persistedAppState,
+    projectId,
+    startedProductIds,
+    syncedProductIds,
+  ]);
+
+  useEffect(() => {
+    const currentProject =
+      persistedAppState.projects.find((project) => project.id === projectId) || null;
+    setProjectName(currentProject?.name || 'Futuria');
+  }, [persistedAppState.projects, projectId]);
 
   const selectProduct = (product: Product) => {
     void (async () => {

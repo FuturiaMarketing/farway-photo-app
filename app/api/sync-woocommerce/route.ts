@@ -5,6 +5,10 @@ import {
   getAcfFieldsForProduct,
   normalizeAcfValue,
 } from '@/lib/server/acf-fields';
+import {
+  hasDatabaseConnection,
+  writeBinaryAsset,
+} from '@/lib/server/db';
 import { getResolvedWooCommerceSettings } from '@/lib/server/woocommerce-settings';
 
 type GeneratedResult = {
@@ -470,17 +474,21 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
       message: null,
     });
 
-    const exportDir = path.join(
-      process.cwd(),
-      'public',
-      'woo-sync',
-      sanitizeSegment(body.projectName),
-      sanitizeSegment(body.productName)
-    );
-
-    await mkdir(exportDir, { recursive: true });
-
     const syncedImageUrls = new Map<string, string>();
+    const shouldUseDatabaseAssetStorage = hasDatabaseConnection();
+
+    let exportDir = '';
+    if (!shouldUseDatabaseAssetStorage) {
+      exportDir = path.join(
+        process.cwd(),
+        'public',
+        'woo-sync',
+        sanitizeSegment(body.projectName),
+        sanitizeSegment(body.productName)
+      );
+
+      await mkdir(exportDir, { recursive: true });
+    }
 
     for (const result of body.generatedResults) {
       const parsed = parseDataUrl(result.url);
@@ -492,11 +500,35 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
       const extension = getFileExtension(parsed.mimeType);
       const assetLabel = `${body.productName} ${result.color} ${result.pose} di Farway Milano`;
       const filename = `${sanitizeFileName(assetLabel)}.${extension}`;
-      const absoluteFile = path.join(exportDir, filename);
-      const publicFile = `${publicBaseUrl}/woo-sync/${sanitizeSegment(body.projectName)}/${sanitizeSegment(body.productName)}/${filename}`;
 
-      await writeFile(absoluteFile, Buffer.from(parsed.base64, 'base64'));
-      syncedImageUrls.set(result.key, publicFile);
+      if (shouldUseDatabaseAssetStorage) {
+        const assetId = await writeBinaryAsset({
+          namespace: 'woo-sync',
+          key: [
+            sanitizeSegment(body.projectName),
+            sanitizeSegment(body.productName),
+            result.key,
+            filename,
+          ].join('__'),
+          mimeType: parsed.mimeType,
+          bytes: Buffer.from(parsed.base64, 'base64'),
+          metadata: {
+            projectName: body.projectName,
+            productName: body.productName,
+            resultKey: result.key,
+            filename,
+            label: assetLabel,
+          },
+        });
+
+        syncedImageUrls.set(result.key, `${publicBaseUrl}/api/public-image/${assetId}`);
+      } else {
+        const absoluteFile = path.join(exportDir, filename);
+        const publicFile = `${publicBaseUrl}/woo-sync/${sanitizeSegment(body.projectName)}/${sanitizeSegment(body.productName)}/${filename}`;
+
+        await writeFile(absoluteFile, Buffer.from(parsed.base64, 'base64'));
+        syncedImageUrls.set(result.key, publicFile);
+      }
     }
 
     const galleryOrder = [

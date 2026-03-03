@@ -26,6 +26,33 @@ type AmbientazioneCollection = {
   studio: AmbientazioneSetting[];
   realLife: AmbientazioneSetting[];
 };
+type PersistedAppState = {
+  projects: ProjectEntry[];
+  currentProjectId: string;
+  shootingSettingsMap: Record<string, AmbientazioneCollection>;
+  shootingReferenceImagesByProject: Record<string, Record<string, string>>;
+  selectedProductByProject: Record<string, string>;
+  startedProductIdsByProject: Record<string, number[]>;
+  syncedProductIdsByProject: Record<string, number[]>;
+  generatedProductIdsByProject: Record<string, number[]>;
+  manualProductStatusesByProject: Record<string, Record<string, string>>;
+};
+
+function createDefaultPersistedAppState(): PersistedAppState {
+  return {
+    projects: [{ id: 'default', name: 'Futuria' }],
+    currentProjectId: 'default',
+    shootingSettingsMap: {
+      default: defaultAmbientazioniCollection,
+    },
+    shootingReferenceImagesByProject: {},
+    selectedProductByProject: {},
+    startedProductIdsByProject: {},
+    syncedProductIdsByProject: {},
+    generatedProductIdsByProject: {},
+    manualProductStatusesByProject: {},
+  };
+}
 
 type SettingsTab = 'settings' | 'shooting';
 type ShootingSubTab = 'studio' | 'realLife';
@@ -127,23 +154,6 @@ function openSettingsDb() {
   });
 }
 
-async function readAmbientazioneReference(projectId: string, settingId: string) {
-  const db = await openSettingsDb();
-  const key = `${projectId}:${settingId}`;
-
-  return new Promise<string | null>((resolve, reject) => {
-    const transaction = db.transaction(ambientazioniStoreName, 'readonly');
-    const store = transaction.objectStore(ambientazioniStoreName);
-    const request = store.get(key);
-
-    request.onsuccess = () => {
-      const record = request.result as { key: string; dataUrl: string } | undefined;
-      resolve(record?.dataUrl || null);
-    };
-    request.onerror = () => reject(request.error);
-  });
-}
-
 async function writeAmbientazioneReference(projectId: string, settingId: string, dataUrl: string) {
   const db = await openSettingsDb();
   const key = `${projectId}:${settingId}`;
@@ -172,6 +182,115 @@ async function deleteAmbientazioneReference(projectId: string, settingId: string
   });
 }
 
+async function readAllAmbientazioneReferences() {
+  const db = await openSettingsDb();
+
+  return new Promise<Record<string, Record<string, string>>>((resolve, reject) => {
+    const transaction = db.transaction(ambientazioniStoreName, 'readonly');
+    const store = transaction.objectStore(ambientazioniStoreName);
+    const request = store.getAll();
+
+    request.onsuccess = () => {
+      const records = (request.result || []) as Array<{ key: string; dataUrl: string }>;
+      const nestedMap: Record<string, Record<string, string>> = {};
+
+      for (const record of records) {
+        if (!record?.key || !record?.dataUrl) continue;
+
+        const separatorIndex = record.key.indexOf(':');
+        if (separatorIndex === -1) continue;
+
+        const projectId = record.key.slice(0, separatorIndex);
+        const settingId = record.key.slice(separatorIndex + 1);
+
+        if (!projectId || !settingId) continue;
+
+        if (!nestedMap[projectId]) {
+          nestedMap[projectId] = {};
+        }
+
+        nestedMap[projectId][settingId] = record.dataUrl;
+      }
+
+      resolve(nestedMap);
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function mergeAppState(localState: Partial<PersistedAppState>, remoteState: PersistedAppState) {
+  const projects =
+    localState.projects && localState.projects.length > 0
+      ? localState.projects
+      : remoteState.projects.length > 0
+        ? remoteState.projects
+        : createDefaultPersistedAppState().projects;
+
+  return {
+    ...remoteState,
+    projects,
+    currentProjectId:
+      localState.currentProjectId || remoteState.currentProjectId || createDefaultPersistedAppState().currentProjectId,
+    shootingSettingsMap: {
+      ...remoteState.shootingSettingsMap,
+      ...(localState.shootingSettingsMap || {}),
+    },
+    shootingReferenceImagesByProject: {
+      ...remoteState.shootingReferenceImagesByProject,
+      ...(localState.shootingReferenceImagesByProject || {}),
+    },
+    selectedProductByProject: {
+      ...remoteState.selectedProductByProject,
+      ...(localState.selectedProductByProject || {}),
+    },
+    startedProductIdsByProject: {
+      ...remoteState.startedProductIdsByProject,
+      ...(localState.startedProductIdsByProject || {}),
+    },
+    syncedProductIdsByProject: {
+      ...remoteState.syncedProductIdsByProject,
+      ...(localState.syncedProductIdsByProject || {}),
+    },
+    generatedProductIdsByProject: {
+      ...remoteState.generatedProductIdsByProject,
+      ...(localState.generatedProductIdsByProject || {}),
+    },
+    manualProductStatusesByProject: {
+      ...remoteState.manualProductStatusesByProject,
+      ...(localState.manualProductStatusesByProject || {}),
+    },
+  } satisfies PersistedAppState;
+}
+
+async function readRemoteAppState() {
+  try {
+    const res = await fetch('/api/settings/app-state', { cache: 'no-store' });
+    if (!res.ok) {
+      return createDefaultPersistedAppState();
+    }
+
+    const data = (await res.json()) as PersistedAppState;
+    return {
+      ...createDefaultPersistedAppState(),
+      ...data,
+    };
+  } catch {
+    return createDefaultPersistedAppState();
+  }
+}
+
+async function saveRemoteAppState(state: PersistedAppState) {
+  try {
+    await fetch('/api/settings/app-state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(state),
+    });
+  } catch {
+    // Keep local state even if remote sync fails.
+  }
+}
+
 export default function SettingsPage() {
   const [projects, setProjects] = useState<ProjectEntry[]>([{ id: 'default', name: 'Futuria' }]);
   const [projectId, setProjectId] = useState('default');
@@ -182,7 +301,9 @@ export default function SettingsPage() {
   const [shootingSettingsMap, setShootingSettingsMap] = useState<Record<string, AmbientazioneCollection>>({
     default: defaultAmbientazioniCollection,
   });
-  const [shootingReferenceImages, setShootingReferenceImages] = useState<Record<string, string>>({});
+  const [shootingReferenceImagesByProject, setShootingReferenceImagesByProject] = useState<
+    Record<string, Record<string, string>>
+  >({});
   const [shootingDraft, setShootingDraft] = useState('');
   const [draggedShootingIndex, setDraggedShootingIndex] = useState<number | null>(null);
   const [editingShootingIndex, setEditingShootingIndex] = useState<number | null>(null);
@@ -192,80 +313,108 @@ export default function SettingsPage() {
     consumerKey: '',
     consumerSecret: '',
   });
+  const [persistedMetaState, setPersistedMetaState] = useState<
+    Pick<
+      PersistedAppState,
+      | 'selectedProductByProject'
+      | 'startedProductIdsByProject'
+      | 'syncedProductIdsByProject'
+      | 'generatedProductIdsByProject'
+      | 'manualProductStatusesByProject'
+    >
+  >({
+    selectedProductByProject: {},
+    startedProductIdsByProject: {},
+    syncedProductIdsByProject: {},
+    generatedProductIdsByProject: {},
+    manualProductStatusesByProject: {},
+  });
   const [isSavingWooSettings, setIsSavingWooSettings] = useState(false);
   const [wooSettingsMessage, setWooSettingsMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    const rawProjects = window.localStorage.getItem('futuria-projects');
-    const rawCurrent = window.localStorage.getItem('futuria-current-project-id');
+    const loadInitialState = async () => {
+      const rawProjects = window.localStorage.getItem('futuria-projects');
+      const rawCurrent = window.localStorage.getItem('futuria-current-project-id');
+      const rawShootingSettings = window.localStorage.getItem('futuria-shooting-settings');
+      const localReferences = await readAllAmbientazioneReferences().catch(() => ({}));
+      const remoteState = await readRemoteAppState();
+      let localProjects: ProjectEntry[] = [];
+      let localShootingSettings: Record<string, AmbientazioneCollection> = {};
 
-    if (rawProjects) {
-      try {
-        const parsed = JSON.parse(rawProjects) as ProjectEntry[];
-        const safeProjects = parsed.length > 0 ? parsed : [{ id: 'default', name: 'Futuria' }];
-        const current = safeProjects.find((project) => project.id === rawCurrent) || safeProjects[0];
-
-        setProjects(safeProjects);
-        setProjectId(current.id);
-        setProjectName(current.name);
-      } catch {
-        // Ignore malformed local state and keep defaults.
+      if (rawProjects) {
+        try {
+          localProjects = JSON.parse(rawProjects) as ProjectEntry[];
+        } catch {
+          localProjects = [];
+        }
       }
-    }
 
-    const rawShootingSettings = window.localStorage.getItem('futuria-shooting-settings');
-
-    if (rawShootingSettings) {
-      try {
-        setShootingSettingsMap(normalizeAmbientazioniMap(rawShootingSettings));
-      } catch {
-        // Ignore malformed local state.
+      if (rawShootingSettings) {
+        try {
+          localShootingSettings = normalizeAmbientazioniMap(rawShootingSettings);
+        } catch {
+          localShootingSettings = {};
+        }
       }
-    }
 
-    const loadWooSettings = async () => {
+      const localState: Partial<PersistedAppState> = {
+        projects: localProjects,
+        currentProjectId: rawCurrent || '',
+        shootingSettingsMap: localShootingSettings,
+        shootingReferenceImagesByProject: localReferences,
+      };
+
+      const mergedState = mergeAppState(localState, remoteState);
+      const safeProjects =
+        mergedState.projects.length > 0 ? mergedState.projects : createDefaultPersistedAppState().projects;
+      const current =
+        safeProjects.find((project) => project.id === mergedState.currentProjectId) || safeProjects[0];
+
+      setProjects(safeProjects);
+      setProjectId(current.id);
+      setProjectName(current.name);
+      setShootingSettingsMap(mergedState.shootingSettingsMap);
+      setShootingReferenceImagesByProject(mergedState.shootingReferenceImagesByProject);
+      setPersistedMetaState({
+        selectedProductByProject: mergedState.selectedProductByProject,
+        startedProductIdsByProject: mergedState.startedProductIdsByProject,
+        syncedProductIdsByProject: mergedState.syncedProductIdsByProject,
+        generatedProductIdsByProject: mergedState.generatedProductIdsByProject,
+        manualProductStatusesByProject: mergedState.manualProductStatusesByProject,
+      });
+
       try {
         const res = await fetch('/api/settings/woocommerce');
-        if (!res.ok) return;
-
-        const data = (await res.json()) as WooCommerceSettings;
-        setWooSettings(data);
+        if (res.ok) {
+          const data = (await res.json()) as WooCommerceSettings;
+          setWooSettings(data);
+        }
       } catch {
         // Ignore initial load failure.
       }
+
+      setHasLoadedLocalSettings(true);
+      void saveRemoteAppState(mergedState);
     };
 
-    loadWooSettings();
-    setHasLoadedLocalSettings(true);
+    void loadInitialState();
   }, []);
 
   useEffect(() => {
     if (!hasLoadedLocalSettings) return;
     window.localStorage.setItem('futuria-projects', JSON.stringify(projects));
     window.localStorage.setItem('futuria-current-project-id', projectId);
-  }, [hasLoadedLocalSettings, projects, projectId]);
-
-  useEffect(() => {
-    if (!hasLoadedLocalSettings) return;
     window.localStorage.setItem('futuria-shooting-settings', JSON.stringify(shootingSettingsMap));
-  }, [hasLoadedLocalSettings, shootingSettingsMap]);
-
-  useEffect(() => {
-    const loadReferenceImages = async () => {
-      const projectSettings = shootingSettingsMap[projectId] || defaultAmbientazioniCollection;
-      const allSettings = [...projectSettings.studio, ...projectSettings.realLife];
-
-      const entries = await Promise.all(
-        allSettings.map(async (setting) => [setting.id, await readAmbientazioneReference(projectId, setting.id)] as const)
-      );
-
-      setShootingReferenceImages(
-        Object.fromEntries(entries.filter((entry): entry is readonly [string, string] => Boolean(entry[1])))
-      );
-    };
-
-    void loadReferenceImages();
-  }, [projectId, shootingSettingsMap]);
+    void saveRemoteAppState({
+      ...createDefaultPersistedAppState(),
+      projects,
+      currentProjectId: projectId,
+      shootingSettingsMap,
+      shootingReferenceImagesByProject,
+      ...persistedMetaState,
+    });
+  }, [hasLoadedLocalSettings, persistedMetaState, projectId, projects, shootingReferenceImagesByProject, shootingSettingsMap]);
 
   const switchProject = (nextProjectId: string) => {
     const nextProject = projects.find((project) => project.id === nextProjectId);
@@ -308,6 +457,7 @@ export default function SettingsPage() {
 
   const projectAmbientazioni = shootingSettingsMap[projectId] || defaultAmbientazioniCollection;
   const currentShootingSettings = projectAmbientazioni[activeShootingSubTab];
+  const shootingReferenceImages = shootingReferenceImagesByProject[projectId] || {};
 
   const addShootingSetting = () => {
     const trimmed = shootingDraft.trim();
@@ -365,10 +515,13 @@ export default function SettingsPage() {
 
     if (settingToRemove) {
       void deleteAmbientazioneReference(projectId, settingToRemove.id);
-      setShootingReferenceImages((prev) => {
-        const next = { ...prev };
-        delete next[settingToRemove.id];
-        return next;
+      setShootingReferenceImagesByProject((prev) => {
+        const projectReferences = { ...(prev[projectId] || {}) };
+        delete projectReferences[settingToRemove.id];
+        return {
+          ...prev,
+          [projectId]: projectReferences,
+        };
       });
     }
   };
@@ -409,9 +562,12 @@ export default function SettingsPage() {
 
     await writeAmbientazioneReference(projectId, setting.id, dataUrl);
 
-    setShootingReferenceImages((prev) => ({
+    setShootingReferenceImagesByProject((prev) => ({
       ...prev,
-      [setting.id]: dataUrl,
+      [projectId]: {
+        ...(prev[projectId] || {}),
+        [setting.id]: dataUrl,
+      },
     }));
 
     setShootingSettingsMap((prev) => ({
@@ -428,10 +584,13 @@ export default function SettingsPage() {
   const clearShootingReference = async (setting: AmbientazioneSetting) => {
     await deleteAmbientazioneReference(projectId, setting.id);
 
-    setShootingReferenceImages((prev) => {
-      const next = { ...prev };
-      delete next[setting.id];
-      return next;
+    setShootingReferenceImagesByProject((prev) => {
+      const projectReferences = { ...(prev[projectId] || {}) };
+      delete projectReferences[setting.id];
+      return {
+        ...prev,
+        [projectId]: projectReferences,
+      };
     });
 
     setShootingSettingsMap((prev) => ({
