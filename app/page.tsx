@@ -1793,7 +1793,8 @@ export default function Home() {
   };
 
   const toggleAcfCheckboxValue = (field: AcfField, optionValue: string) => {
-    const currentValue = Array.isArray(acfValues[field.name]) ? acfValues[field.name] : [];
+    const currentRawValue = normalizeAcfValueForField(field, acfValues[field.name]);
+    const currentValue = Array.isArray(currentRawValue) ? currentRawValue : [];
     const nextValue = currentValue.includes(optionValue)
       ? currentValue.filter((value) => value !== optionValue)
       : [...currentValue, optionValue];
