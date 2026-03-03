@@ -73,6 +73,10 @@ const defaultRealLifeSettings: AmbientazioneSetting[] = [
   { id: 'default-domenica', label: 'Il vestito della domenica', hasReferenceImage: false },
   { id: 'default-gelato', label: "Una sera d'estate: gelato con gli amici", hasReferenceImage: false },
   { id: 'default-pranzi', label: 'Pranzi semplici ed eleganti', hasReferenceImage: false },
+  { id: 'default-cerimonia', label: 'Cerimonia in famiglia', hasReferenceImage: false },
+  { id: 'default-picnic', label: 'Picnic al parco', hasReferenceImage: false },
+  { id: 'default-museo', label: 'Pomeriggio al museo', hasReferenceImage: false },
+  { id: 'default-lago', label: 'Weekend al lago', hasReferenceImage: false },
 ];
 const defaultAmbientazioniCollection: AmbientazioneCollection = {
   studio: defaultStudioSettings,
@@ -92,8 +96,8 @@ function normalizeAmbientazioniMap(raw: string | null) {
     return { default: defaultAmbientazioniCollection } as Record<string, AmbientazioneCollection>;
   }
 
-  const normalizeList = (projectKey: string, settings: AmbientazioneSetting[] | string[] | undefined, fallback: AmbientazioneSetting[]) =>
-    Array.isArray(settings)
+  const normalizeList = (projectKey: string, settings: AmbientazioneSetting[] | string[] | undefined, fallback: AmbientazioneSetting[]) => {
+    const normalizedExisting = Array.isArray(settings)
       ? settings.map((setting, index) =>
           typeof setting === 'string'
             ? {
@@ -107,7 +111,22 @@ function normalizeAmbientazioniMap(raw: string | null) {
                 hasReferenceImage: Boolean(setting.hasReferenceImage),
               }
         )
-      : [...fallback];
+      : [];
+    const seenLabels = new Set(
+      normalizedExisting.map((setting) => setting.label.trim().toLowerCase())
+    );
+
+    for (const fallbackSetting of fallback) {
+      const normalizedLabel = fallbackSetting.label.trim().toLowerCase();
+
+      if (!seenLabels.has(normalizedLabel)) {
+        normalizedExisting.push({ ...fallbackSetting });
+        seenLabels.add(normalizedLabel);
+      }
+    }
+
+    return normalizedExisting;
+  };
 
   const parsed = JSON.parse(raw) as Record<
     string,
@@ -166,6 +185,26 @@ async function writeAmbientazioneReference(projectId: string, settingId: string,
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
   });
+}
+
+async function uploadAmbientazioneReference(projectId: string, settingId: string, dataUrl: string) {
+  const res = await fetch('/api/settings/reference-image', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      projectId,
+      settingId,
+      dataUrl,
+    }),
+  });
+
+  if (!res.ok) {
+    const data = (await res.json()) as { error?: string };
+    throw new Error(data.error || 'Upload immagine reference fallito');
+  }
+
+  const data = (await res.json()) as { url?: string };
+  return String(data.url || dataUrl);
 }
 
 async function deleteAmbientazioneReference(projectId: string, settingId: string) {
@@ -561,12 +600,13 @@ export default function SettingsPage() {
     });
 
     await writeAmbientazioneReference(projectId, setting.id, dataUrl);
+    const remoteUrl = await uploadAmbientazioneReference(projectId, setting.id, dataUrl);
 
     setShootingReferenceImagesByProject((prev) => ({
       ...prev,
       [projectId]: {
         ...(prev[projectId] || {}),
-        [setting.id]: dataUrl,
+        [setting.id]: remoteUrl,
       },
     }));
 

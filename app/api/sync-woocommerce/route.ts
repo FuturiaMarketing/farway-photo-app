@@ -7,6 +7,8 @@ import {
 } from '@/lib/server/acf-fields';
 import {
   hasDatabaseConnection,
+  readJsonValue,
+  writeJsonValue,
   writeBinaryAsset,
 } from '@/lib/server/db';
 import { getResolvedWooCommerceSettings } from '@/lib/server/woocommerce-settings';
@@ -95,6 +97,7 @@ type GeminiTextResponse = {
 };
 
 const syncJobs = new Map<string, SyncJob>();
+const syncJobNamespace = 'sync-jobs';
 const occasionDusoFieldName = 'occasione_duso';
 const occasionDusoChoiceByLabel = new Map<string, string>([
   ['a casa dei nonni', 'casa_nonni'],
@@ -375,7 +378,7 @@ function findColorFromVariation(variation: WooVariation, knownColors: string[]) 
   return null;
 }
 
-function createJob() {
+async function createJob() {
   const id = Math.random().toString(36).slice(2, 12);
   const job: SyncJob = {
     id,
@@ -387,18 +390,46 @@ function createJob() {
   };
 
   syncJobs.set(id, job);
+  if (hasDatabaseConnection()) {
+    await writeJsonValue(syncJobNamespace, id, job);
+  }
   return job;
 }
 
-function updateJob(jobId: string, patch: Partial<SyncJob>) {
-  const current = syncJobs.get(jobId);
-  if (!current) return;
+async function readJob(jobId: string) {
+  const inMemory = syncJobs.get(jobId);
 
-  syncJobs.set(jobId, { ...current, ...patch });
+  if (inMemory) {
+    return inMemory;
+  }
+
+  if (!hasDatabaseConnection()) {
+    return null;
+  }
+
+  const stored = await readJsonValue<SyncJob>(syncJobNamespace, jobId);
+
+  if (stored) {
+    syncJobs.set(jobId, stored);
+  }
+
+  return stored;
 }
 
-function failJob(jobId: string, message: string) {
-  updateJob(jobId, {
+async function updateJob(jobId: string, patch: Partial<SyncJob>) {
+  const current = syncJobs.get(jobId);
+  const source = current || (await readJob(jobId));
+  if (!source) return;
+
+  const nextJob = { ...source, ...patch };
+  syncJobs.set(jobId, nextJob);
+  if (hasDatabaseConnection()) {
+    await writeJsonValue(syncJobNamespace, jobId, nextJob);
+  }
+}
+
+async function failJob(jobId: string, message: string) {
+  await updateJob(jobId, {
     status: 'failed',
     progress: 100,
     phase: 'Errore',
@@ -467,7 +498,7 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
       );
     }
 
-    updateJob(jobId, {
+    await updateJob(jobId, {
       status: 'running',
       progress: 10,
       phase: 'Esporto immagini',
@@ -544,7 +575,7 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
     const productEndpoint = `${cleanUrl}/wp-json/wc/v3/products/${body.productId}?${authQuery}`;
     const variationsEndpoint = `${cleanUrl}/wp-json/wc/v3/products/${body.productId}/variations?per_page=100&${authQuery}`;
 
-    updateJob(jobId, {
+    await updateJob(jobId, {
       progress: 35,
       phase: 'Leggo prodotto e varianti',
     });
@@ -682,7 +713,7 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
     const assetsNeedingUpload = uniqueAssets.filter((asset) => !assetIdByKey.has(asset.assetKey));
 
     if (assetsNeedingUpload.length > 0) {
-      updateJob(jobId, {
+      await updateJob(jobId, {
         progress: 50,
         phase: 'Carico nuovi asset media',
       });
@@ -727,7 +758,7 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
       ...existingProductImages,
     ];
 
-    updateJob(jobId, {
+    await updateJob(jobId, {
       progress: 60,
       phase: 'Aggiorno galleria e testi prodotto',
     });
@@ -768,7 +799,7 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
       }
     }
 
-    updateJob(jobId, {
+    await updateJob(jobId, {
       progress: 78,
       phase: 'Aggiorno varianti colore',
     });
@@ -812,7 +843,7 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
         95,
         78 + Math.round(((index + 1) / Math.max(variations.length, 1)) * 17)
       );
-      updateJob(jobId, {
+      await updateJob(jobId, {
         progress: variationProgress,
         phase: `Aggiorno varianti colore (${index + 1}/${variations.length})`,
       });
@@ -830,7 +861,7 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
         : 'Sincronizzazione completata sostituendo la galleria con il nuovo set.'
     } Galleria prodotto aggiornata con ${productImagesPayload.length} immagini e ${updatedVariationIds.length} varianti collegate.${crossSellMessage}${occasionMessage}`;
 
-    updateJob(jobId, {
+    await updateJob(jobId, {
       status: 'completed',
       progress: 100,
       phase: 'Completata',
@@ -843,13 +874,13 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
       },
     });
   } catch (error: unknown) {
-    failJob(jobId, error instanceof Error ? error.message : 'Errore sconosciuto');
+    await failJob(jobId, error instanceof Error ? error.message : 'Errore sconosciuto');
   }
 }
 
 export async function POST(req: Request) {
   const body = (await req.json()) as SyncRequest;
-  const job = createJob();
+  const job = await createJob();
 
   void runSyncJob(job.id, req, body);
 
@@ -869,7 +900,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'jobId mancante.' }, { status: 400 });
   }
 
-  const job = syncJobs.get(jobId);
+  const job = await readJob(jobId);
 
   if (!job) {
     return NextResponse.json({ error: 'Job non trovato.' }, { status: 404 });

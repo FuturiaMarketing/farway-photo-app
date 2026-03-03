@@ -11,7 +11,7 @@ const garmentFitOptions = ['Morbida leggermente oversize', 'Oversize', 'A carota
 const garmentLengthOptions = ['Sopra al ginocchio', 'Sotto al ginocchio', 'A tre quarti', 'Lungo che copre le caviglie'] as const;
 const sourceViewOptions = ['front', 'back', 'side'] as const;
 const galleryPoses = [
-  { key: 'back', label: 'Back', prompt: 'back view, full body, studio catalog photo' },
+  { key: 'back', label: 'Back', prompt: 'strict back view, full body, studio catalog photo, the model is turned away from the camera so the back of the garment is the primary visible side, no front-facing presentation' },
   { key: 'side', label: 'Side', prompt: 'side view, full body, studio catalog photo' },
   { key: 'action', label: 'In Action', prompt: 'natural action pose, realistic movement, commercial fashion photo' },
 ] as const;
@@ -76,9 +76,11 @@ type ProductSession = {
   secondaryCompanionFit: string;
   secondaryCompanionLength: string;
   selectedAdditionalScenarios: string[];
+  selectedExtraScenarioLocation: string;
   generatedDescriptionHtml: string;
   generatedShortDescriptionHtml: string;
   acfValues: AcfFieldValues;
+  excludedSyncResultKeys: string[];
   activeTab: ActiveTab;
   isPreviewApproved: boolean;
 };
@@ -114,6 +116,17 @@ const sessionDbName = 'futuria-session-db';
 const sessionStoreName = 'generated-results';
 const settingsDbName = 'futuria-settings-db';
 const ambientazioniStoreName = 'ambientazioni-references';
+const productsCacheStorageKey = 'futuria-products-cache';
+const extraScenarioLocationOptions = [
+  'Centro di Milano',
+  'Centro di Roma',
+  'Centro di Firenze',
+  'Centro di Venezia',
+  'Centro di Napoli',
+  'Centro di Torino',
+  'Centro di Verona',
+  'Centro di Bologna',
+] as const;
 const defaultStudioSettings: AmbientazioneSetting[] = [
   { id: 'default-studio-bianco', label: 'Studio sfondo bianco', hasReferenceImage: false },
   { id: 'default-studio-caldo', label: 'Studio sfondo neutro caldo', hasReferenceImage: false },
@@ -128,6 +141,10 @@ const defaultRealLifeSettings: AmbientazioneSetting[] = [
   { id: 'default-domenica', label: 'Il vestito della domenica', hasReferenceImage: false },
   { id: 'default-gelato', label: "Una sera d'estate: gelato con gli amici", hasReferenceImage: false },
   { id: 'default-pranzi', label: 'Pranzi semplici ed eleganti', hasReferenceImage: false },
+  { id: 'default-cerimonia', label: 'Cerimonia in famiglia', hasReferenceImage: false },
+  { id: 'default-picnic', label: 'Picnic al parco', hasReferenceImage: false },
+  { id: 'default-museo', label: 'Pomeriggio al museo', hasReferenceImage: false },
+  { id: 'default-lago', label: 'Weekend al lago', hasReferenceImage: false },
 ];
 const defaultAmbientazioniCollection: AmbientazioneCollection = {
   studio: defaultStudioSettings,
@@ -146,8 +163,8 @@ function normalizeAmbientazioniMap(raw: string | null) {
     return { default: defaultAmbientazioniCollection } as Record<string, AmbientazioneCollection>;
   }
 
-  const normalizeList = (projectKey: string, settings: AmbientazioneSetting[] | string[] | undefined, fallback: AmbientazioneSetting[]) =>
-    Array.isArray(settings)
+  const normalizeList = (projectKey: string, settings: AmbientazioneSetting[] | string[] | undefined, fallback: AmbientazioneSetting[]) => {
+    const normalizedExisting = Array.isArray(settings)
       ? settings.map((setting, index) =>
           typeof setting === 'string'
             ? {
@@ -161,7 +178,22 @@ function normalizeAmbientazioniMap(raw: string | null) {
                 hasReferenceImage: Boolean(setting.hasReferenceImage),
               }
         )
-      : [...fallback];
+      : [];
+    const seenLabels = new Set(
+      normalizedExisting.map((setting) => setting.label.trim().toLowerCase())
+    );
+
+    for (const fallbackSetting of fallback) {
+      const normalizedLabel = fallbackSetting.label.trim().toLowerCase();
+
+      if (!seenLabels.has(normalizedLabel)) {
+        normalizedExisting.push({ ...fallbackSetting });
+        seenLabels.add(normalizedLabel);
+      }
+    }
+
+    return normalizedExisting;
+  };
 
   const parsed = JSON.parse(raw) as Record<
     string,
@@ -589,6 +621,29 @@ async function saveRemoteProductSession(
   }
 }
 
+async function uploadClientReferenceImage(projectId: string, key: string, dataUrl: string) {
+  try {
+    const res = await fetch('/api/settings/reference-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        projectId,
+        settingId: key,
+        dataUrl,
+      }),
+    });
+
+    if (!res.ok) {
+      return dataUrl;
+    }
+
+    const data = (await res.json()) as { url?: string };
+    return String(data.url || dataUrl);
+  } catch {
+    return dataUrl;
+  }
+}
+
 function mergeAppState(localState: Partial<PersistedAppState>, remoteState: PersistedAppState) {
   const projects =
     localState.projects && localState.projects.length > 0
@@ -670,8 +725,12 @@ export default function Home() {
   const [isCompanionPickerOpen, setIsCompanionPickerOpen] = useState(false);
   const [companionPickerTarget, setCompanionPickerTarget] = useState<1 | 2>(1);
   const [selectedAdditionalScenarios, setSelectedAdditionalScenarios] = useState<string[]>([]);
+  const [selectedExtraScenarioLocation, setSelectedExtraScenarioLocation] = useState<string>(
+    extraScenarioLocationOptions[0]
+  );
   const [activeTab, setActiveTab] = useState<ActiveTab>('products');
   const [generatedResults, setGeneratedResults] = useState<GeneratedResult[]>([]);
+  const [excludedSyncResultKeys, setExcludedSyncResultKeys] = useState<string[]>([]);
   const [generatedDescriptionHtml, setGeneratedDescriptionHtml] = useState('');
   const [generatedShortDescriptionHtml, setGeneratedShortDescriptionHtml] = useState('');
   const [acfValues, setAcfValues] = useState<AcfFieldValues>({});
@@ -704,6 +763,9 @@ export default function Home() {
   const galleryResults = generatedResults.filter((r) => r.kind === 'gallery');
   const extraScenarioResults = generatedResults.filter((r) => r.kind === 'extra');
   const alternateGenderResults = generatedResults.filter((r) => r.kind === 'alternate');
+  const includedSyncResults = generatedResults.filter(
+    (result) => !excludedSyncResultKeys.includes(result.key)
+  );
   const isBusy = stage !== 'idle';
   const availableCategories = Array.from(
     new Map(
@@ -786,6 +848,15 @@ export default function Home() {
     )
   );
   const alternateGender = job?.gender === 'Maschio' ? 'Femmina' : job?.gender === 'Femmina' ? 'Maschio' : '';
+  const expectedAlternateResultCount = isUnisexProduct && alternateGender ? 2 : 0;
+  const isProductionComplete = Boolean(
+    selectedProduct &&
+      previewResult &&
+      frontResults.length >= selectedProduct.colors.length &&
+      galleryResults.length >= galleryPoses.length &&
+      extraScenarioResults.length >= selectedAdditionalScenarioSettings.length &&
+      alternateGenderResults.length >= expectedAlternateResultCount
+  );
   const companionProduct =
     companionProductId && selectedProduct?.id !== companionProductId
       ? products.find((product) => product.id === companionProductId) || null
@@ -956,7 +1027,9 @@ export default function Home() {
       });
       const data = (await res.json()) as Product[] | { error?: string };
       if (!res.ok) throw new Error('error' in data ? data.error || 'Errore caricamento' : 'Errore caricamento');
-      setProducts(Array.isArray(data) ? data : []);
+      const nextProducts = Array.isArray(data) ? data : [];
+      setProducts(nextProducts);
+      window.localStorage.setItem(productsCacheStorageKey, JSON.stringify(nextProducts));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Errore sconosciuto');
     } finally {
@@ -965,7 +1038,22 @@ export default function Home() {
   };
 
   useEffect(() => {
-    loadProducts();
+    const cachedProducts = window.localStorage.getItem(productsCacheStorageKey);
+
+    if (cachedProducts) {
+      try {
+        const parsed = JSON.parse(cachedProducts) as Product[];
+        if (Array.isArray(parsed)) {
+          setProducts(parsed);
+          setIsLoadingProducts(false);
+          return;
+        }
+      } catch {
+        // Fallback to live fetch if cache is malformed.
+      }
+    }
+
+    void loadProducts();
   }, []);
 
   const loadProductState = useCallback(async (product: Product) => {
@@ -995,9 +1083,11 @@ export default function Home() {
       secondaryCompanionFit: '',
       secondaryCompanionLength: '',
       selectedAdditionalScenarios: [],
+      selectedExtraScenarioLocation: extraScenarioLocationOptions[0],
       generatedDescriptionHtml: '',
       generatedShortDescriptionHtml: '',
       acfValues: buildInitialAcfValues(product),
+      excludedSyncResultKeys: [],
       activeTab: 'setup',
       isPreviewApproved: false,
     };
@@ -1051,6 +1141,36 @@ export default function Home() {
       }
     }
 
+    const parsedManualSourceImages =
+      Array.isArray(nextState.manualSourceImages)
+        ? nextState.manualSourceImages.filter(
+            (image): image is string => typeof image === 'string' && image.length > 0
+          )
+        : [];
+    const migratedManualSourceImages = await Promise.all(
+      parsedManualSourceImages.map(async (imageUrl, index) =>
+        imageUrl.startsWith('data:')
+          ? uploadClientReferenceImage(
+              projectId,
+              `manual-${product.id}-${index}-${Date.now()}`,
+              imageUrl
+            )
+          : imageUrl
+      )
+    );
+    const migratedManualSourceMap = new Map(
+      parsedManualSourceImages.map((imageUrl, index) => [imageUrl, migratedManualSourceImages[index]])
+    );
+
+    nextState = {
+      ...nextState,
+      manualSourceImages: migratedManualSourceImages,
+      selectedSourceImages: nextState.selectedSourceImages.map((image) => ({
+        ...image,
+        url: migratedManualSourceMap.get(image.url) || image.url,
+      })),
+    };
+
     let storedResults: GeneratedResult[] = remoteStoredState.generatedResults || [];
 
     try {
@@ -1061,11 +1181,7 @@ export default function Home() {
     }
 
     setSelectedSourceImages(nextState.selectedSourceImages);
-    setManualSourceImages(
-      Array.isArray(nextState.manualSourceImages)
-        ? nextState.manualSourceImages.filter((image): image is string => typeof image === 'string' && image.length > 0)
-        : []
-    );
+    setManualSourceImages(migratedManualSourceImages);
     setJob(nextState.job);
     setSelectedColor(nextState.selectedColor);
     setCompanionProductId(
@@ -1092,8 +1208,12 @@ export default function Home() {
     setIsCompanionPickerOpen(false);
     setCompanionPickerTarget(1);
     setSelectedAdditionalScenarios(nextState.selectedAdditionalScenarios || []);
+    setSelectedExtraScenarioLocation(
+      nextState.selectedExtraScenarioLocation || extraScenarioLocationOptions[0]
+    );
     setGeneratedDescriptionHtml(nextState.generatedDescriptionHtml || '');
     setGeneratedShortDescriptionHtml(nextState.generatedShortDescriptionHtml || '');
+    setExcludedSyncResultKeys(nextState.excludedSyncResultKeys || []);
     setAcfValues(
       Object.fromEntries(
         product.acfFields.map((field) => [
@@ -1395,9 +1515,19 @@ export default function Home() {
 
   useEffect(() => {
     const nextSettings = persistedAppState.shootingSettingsMap[projectId];
-    setShootingSettings(nextSettings || defaultAmbientazioniCollection);
-    setShootingReferenceImages(persistedAppState.shootingReferenceImagesByProject[projectId] || {});
+    const resolvedSettings = nextSettings || defaultAmbientazioniCollection;
+    const resolvedReferences = persistedAppState.shootingReferenceImagesByProject[projectId] || {};
+
+    if (JSON.stringify(resolvedSettings) !== JSON.stringify(shootingSettings)) {
+      setShootingSettings(resolvedSettings);
+    }
+
+    if (JSON.stringify(resolvedReferences) !== JSON.stringify(shootingReferenceImages)) {
+      setShootingReferenceImages(resolvedReferences);
+    }
   }, [
+    shootingReferenceImages,
+    shootingSettings,
     persistedAppState.shootingReferenceImagesByProject,
     persistedAppState.shootingSettingsMap,
     projectId,
@@ -1673,6 +1803,22 @@ export default function Home() {
       setPersistedAppState(mergedState);
       setProjectId(current.id);
       setProjectName(current.name);
+      setShootingSettings(
+        mergedState.shootingSettingsMap[current.id] || defaultAmbientazioniCollection
+      );
+      setShootingReferenceImages(
+        mergedState.shootingReferenceImagesByProject[current.id] || {}
+      );
+      setStartedProductIds(mergedState.startedProductIdsByProject[current.id] || []);
+      setSyncedProductIds(mergedState.syncedProductIdsByProject[current.id] || []);
+      setGeneratedProductIds(mergedState.generatedProductIdsByProject[current.id] || []);
+      setManualProductStatuses(
+        Object.fromEntries(
+          Object.entries(mergedState.manualProductStatusesByProject[current.id] || {}).map(
+            ([productId, status]) => [Number(productId), status as ManualProductStatus]
+          )
+        ) as Record<number, ManualProductStatus>
+      );
       setHasLoadedAppState(true);
       void saveRemoteAppState(mergedState);
 
@@ -1714,9 +1860,11 @@ export default function Home() {
       secondaryCompanionFit,
       secondaryCompanionLength,
       selectedAdditionalScenarios,
+      selectedExtraScenarioLocation,
       generatedDescriptionHtml,
       generatedShortDescriptionHtml,
       acfValues,
+      excludedSyncResultKeys,
       activeTab,
       isPreviewApproved,
     };
@@ -1743,9 +1891,11 @@ export default function Home() {
     secondaryCompanionFit,
     secondaryCompanionLength,
     selectedAdditionalScenarios,
+    selectedExtraScenarioLocation,
     generatedDescriptionHtml,
     generatedShortDescriptionHtml,
     acfValues,
+    excludedSyncResultKeys,
     selectedProduct,
     selectedSourceImages,
   ]);
@@ -1777,26 +1927,9 @@ export default function Home() {
     if (!hasLoadedAppState) return;
 
     setPersistedAppState((prev) => {
-      const existingProjects = prev.projects.length > 0 ? prev.projects : createDefaultPersistedAppState().projects;
-      const hasCurrentProject = existingProjects.some((project) => project.id === projectId);
-      const nextProjects = hasCurrentProject
-        ? existingProjects.map((project) =>
-            project.id === projectId ? { ...project, name: projectName || project.name } : project
-          )
-        : [...existingProjects, { id: projectId, name: projectName || 'Futuria' }];
-
-      return {
+      const nextState = {
         ...prev,
-        projects: nextProjects,
         currentProjectId: projectId,
-        shootingSettingsMap: {
-          ...prev.shootingSettingsMap,
-          [projectId]: shootingSettings,
-        },
-        shootingReferenceImagesByProject: {
-          ...prev.shootingReferenceImagesByProject,
-          [projectId]: shootingReferenceImages,
-        },
         selectedProductByProject: {
           ...prev.selectedProductByProject,
           ...(selectedProduct ? { [projectId]: String(selectedProduct.id) } : {}),
@@ -1823,16 +1956,15 @@ export default function Home() {
           ),
         },
       };
+
+      return JSON.stringify(prev) === JSON.stringify(nextState) ? prev : nextState;
     });
   }, [
     generatedProductIds,
     hasLoadedAppState,
     manualProductStatuses,
     projectId,
-    projectName,
     selectedProduct,
-    shootingReferenceImages,
-    shootingSettings,
     startedProductIds,
     syncedProductIds,
   ]);
@@ -1927,8 +2059,19 @@ export default function Home() {
             })
         )
     );
+    const persistedImages = await Promise.all(
+      uploadedImages.map((image, index) =>
+        image.startsWith('data:')
+          ? uploadClientReferenceImage(
+              projectId,
+              `manual-${selectedProduct?.id || 'pending'}-${Date.now()}-${index}`,
+              image
+            )
+          : image
+      )
+    );
 
-    setManualSourceImages((prev) => Array.from(new Set([...prev, ...uploadedImages])));
+    setManualSourceImages((prev) => Array.from(new Set([...prev, ...persistedImages])));
     event.target.value = '';
   };
 
@@ -2466,6 +2609,13 @@ export default function Home() {
   const syncToWooCommerce = async () => {
     if (!selectedProduct || generatedResults.length === 0) return;
 
+    const syncResults = includedSyncResults;
+
+    if (syncResults.length === 0) {
+      setWooSyncMessage('Non hai selezionato nessuna immagine da sincronizzare.');
+      return;
+    }
+
     setIsSyncingWoo(true);
     setShowWooSyncCompleteModal(false);
     setWooSyncProgress(0);
@@ -2480,7 +2630,7 @@ export default function Home() {
           projectName,
           productId: selectedProduct.id,
           productName: selectedProduct.name,
-          generatedResults,
+          generatedResults: syncResults,
           productDescriptionHtml: generatedDescriptionHtml,
           productShortDescriptionHtml: generatedShortDescriptionHtml,
           acfValues,
@@ -2537,7 +2687,7 @@ export default function Home() {
           const syncedCover =
             galleryResults.find((result) => result.pose === 'In Action') ||
             previewResult ||
-            generatedResults[0] ||
+            syncResults[0] ||
             null;
 
           if (syncedCover) {
@@ -2584,6 +2734,35 @@ export default function Home() {
     }
   };
 
+  const waitFor = (ms: number) =>
+    new Promise<void>((resolve) => {
+      window.setTimeout(resolve, ms);
+    });
+
+  const upsertGeneratedResult = (
+    results: GeneratedResult[],
+    nextResult: GeneratedResult
+  ) => {
+    const nextResults = [...results];
+    const existingIndex = nextResults.findIndex((result) => result.key === nextResult.key);
+
+    if (existingIndex >= 0) {
+      nextResults[existingIndex] = nextResult;
+      return nextResults;
+    }
+
+    nextResults.push(nextResult);
+    return nextResults;
+  };
+
+  const toggleSyncInclusion = (resultKey: string) => {
+    setExcludedSyncResultKeys((prev) =>
+      prev.includes(resultKey)
+        ? prev.filter((key) => key !== resultKey)
+        : [...prev, resultKey]
+    );
+  };
+
   const requestImage = async (args: {
     key: string; kind: 'hero' | 'front' | 'gallery' | 'extra' | 'alternate'; pose: string; posePrompt: string; targetColor: string; anchorImageUrl?: string; anchorInstruction?: string; scenarioOverrideLabel?: string; scenarioOverrideReferenceUrl?: string; genderOverride?: string; additionalCorrectionPrompt?: string;
   }) => {
@@ -2602,6 +2781,7 @@ export default function Home() {
         : args.scenarioOverrideLabel
           ? undefined
           : selectedScenarioReferenceUrl;
+    const environmentReferenceImageUrls = scenarioReferenceUrl ? [scenarioReferenceUrl] : [];
     const companionReferences = selectedCompanionEntries.map((entry) => ({
       productName: entry.product.name,
       role: entry.role,
@@ -2610,40 +2790,40 @@ export default function Home() {
       product: entry.product,
       imageUrl: entry.imageUrl,
     }));
+    const productDescriptionContext = String(selectedProduct?.description || '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 1200);
     const imageUrls = [
       ...(args.anchorImageUrl ? [args.anchorImageUrl] : []),
       ...relevantSourceImages.map((img) => img.url),
-      ...(scenarioReferenceUrl ? [scenarioReferenceUrl] : []),
+      ...environmentReferenceImageUrls,
       ...companionReferences.map((entry) => entry.imageUrl).filter(Boolean),
     ];
     const finalGenerationImageUrls = Array.from(
       new Set(
         [
-          ...(args.anchorImageUrl ? [args.anchorImageUrl] : []),
-          ...(strictColorSourceImages[0]?.url
-            ? [strictColorSourceImages[0].url]
-            : relevantSourceImages[0]?.url
-              ? [relevantSourceImages[0].url]
-              : []),
-          ...(scenarioReferenceUrl ? [scenarioReferenceUrl] : []),
+          ...(args.anchorImageUrl && args.kind !== 'alternate' ? [args.anchorImageUrl] : []),
+          ...strictColorSourceImages.slice(0, 2).map((image) => image.url),
+          ...relevantSourceImages.slice(0, 3).map((image) => image.url),
           ...companionReferences.map((entry) => entry.imageUrl).filter(Boolean),
         ].filter(Boolean)
       )
     );
-    const companionReferenceStartIndex =
-      (args.anchorImageUrl ? 1 : 0) + relevantSourceImages.length + (scenarioReferenceUrl ? 1 : 0) + 1;
-    const response = await fetch('/api/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        imageUrls,
-        finalGenerationImageUrls,
-        generationKind: args.kind,
-        garmentReferenceImageUrls: relevantSourceImages.map((img) => img.url),
-        colorReferenceImageUrls: strictColorSourceImages.map((img) => img.url),
-        targetColorLabel: args.targetColor,
-        productName: selectedProduct?.name || '',
-        prompt: [
+    const requestBody = {
+      imageUrls,
+      finalGenerationImageUrls,
+      generationKind: args.kind,
+      garmentReferenceImageUrls: relevantSourceImages.map((img) => img.url),
+      colorReferenceImageUrls: strictColorSourceImages.map((img) => img.url),
+      environmentReferenceImageUrls,
+      targetColorLabel: args.targetColor,
+      productName: selectedProduct?.name || '',
+      productDescription: productDescriptionContext,
+      requestOrigin: window.location.origin,
+      prompt: [
           'Follow this workflow exactly: first isolate the garment from the original product references, then lock garment construction and details from those references only, then lock color from the matching target-color references only, and only after that use any anchor image for continuity.',
           `Target product title: ${selectedProduct?.name || ''}.`,
           'The target garment is the product named in the title above.',
@@ -2657,6 +2837,9 @@ export default function Home() {
           'Do not add bows, ruffles, pleats, buttons, belts, pockets, trims, embroidery, stitching, prints, logos, seams, collars, sleeves, ties, textures, layers, or accessories unless they are clearly visible in the provided references.',
           'If a garment detail is not clearly visible in the references, omit it rather than guessing.',
           'The safest behavior is strict fidelity: reproduce only what is explicitly present in the references and nothing else.',
+          productDescriptionContext
+            ? `Imported WooCommerce product description for supporting context only: ${productDescriptionContext}. Use it only to confirm garment intent or category-specific details that are already consistent with the references. The product references remain the only source of truth for construction, decorative details, and color.`
+            : '',
           'Keep the full model and all garments comfortably inside the frame with visible safety margin on top, bottom, left, and right edges.',
           'Leave roughly 8 to 12 percent breathing room around the subject for possible frontend cropping. Do not crop close to any edge.',
           `Size/Age: ${job.modelAge}.`,
@@ -2674,7 +2857,7 @@ export default function Home() {
           args.kind === 'extra'
             ? 'For special-occasion lifestyle scenes, the model must be visibly in action and doing something natural that clearly fits the environment, moment, and space. Avoid static standing poses in these images.'
             : '',
-          normalizedRequestPose.includes('action')
+          normalizedRequestPose.includes('action') || args.kind === 'extra'
             ? 'The model should look moderately happy, with a soft natural smile and a pleasant positive expression.'
             : 'Even in catalog poses, the model should look gently happy and approachable, with a visible soft natural smile rather than a neutral expression.',
           'Avoid exaggerated laughter, overly dramatic expressions, or a blank emotionless face.',
@@ -2690,18 +2873,20 @@ export default function Home() {
           `If the reference person appears to be a different ethnicity than ${job.ethnicity}, ignore the reference person and still generate a new ${job.ethnicity} model.`,
           'If there is any conflict between the reference model appearance and the written configuration, always obey the written configuration and ignore the reference model appearance.',
           `Scenario label: ${scenarioLabel}.`,
+          args.kind === 'extra'
+            ? `Set this ambientazione in ${selectedExtraScenarioLocation}, using recognizable spatial cues and atmosphere coherent with ${selectedExtraScenarioLocation}.`
+            : '',
           expandShootingPrompt(scenarioLabel),
           scenarioReferenceUrl
-            ? 'The last reference image is the environment reference for the selected ambientazione. Interpret it as guidance for background, light direction, styling mood, and set design only. Do not copy any person or garment from that image.'
+            ? 'If an environment reference exists for the selected ambientazione, use it only as supporting guidance for background, light direction, set design, and activity. Never let it change the garment design, garment color, trims, or proportions.'
             : '',
           ...companionReferences.flatMap((entry, index) => {
-            const referenceIndex = companionReferenceStartIndex + index;
             return [
               `Additional same-brand outfit product ${index + 1}: "${entry.productName}". The model must also wear this exact extra product together with the main product, keeping all garments clearly distinct and faithful to their own references.`,
               `Role of additional same-brand garment ${index + 1}: ${entry.role}. Place and style this secondary product as a ${entry.role.toLowerCase()} in the outfit.`,
               buildCompanionGarmentShapePrompt(entry),
               `Keep the secondary garment "${entry.productName}" in its own exact visible color from its own dedicated reference image. Never recolor it to match the main product colorway.`,
-              `Reference image ${referenceIndex} is the outfit companion reference for "${entry.productName}". Use that image only to reproduce that secondary garment. Do not confuse it with the main product or with any other companion garment.`,
+              `Use the dedicated companion reference image for "${entry.productName}" only to reproduce that secondary garment. Do not confuse it with the main product or with any other companion garment.`,
             ];
           }),
           `Target garment colorway: ${args.targetColor}.`,
@@ -2723,7 +2908,7 @@ export default function Home() {
           'If an anchor image is provided, use it only for model identity, expression, framing, and continuity. Never use the anchor image as a garment-design reference.',
           'The anchor image must not introduce new trims, bows, belts, waist details, prints, or construction changes.',
           'Respect front/back/side labels strictly and use only the provided pose-relevant references to understand the visible side of the garment.',
-          'For a front pose, the visible front of the garment must face the camera. For a back pose, the visible back of the garment must face the camera.',
+          'For a front pose, the visible front of the garment must face the camera. For a back pose, the model must turn away so the visible back of the garment fully faces the camera and front-facing presentation is forbidden.',
           'Use source images only to understand the garment. Ignore any visible person, face, body, child, mannequin, skin tone, hairstyle, or styling of the human subject in those source images.',
           args.additionalCorrectionPrompt
             ? `Apply these additional correction instructions to this new render: ${args.additionalCorrectionPrompt}.`
@@ -2732,8 +2917,31 @@ export default function Home() {
           args.anchorImageUrl ? `If an anchor image is provided, use it only for model identity, expression, framing, and continuity. Never use it as the source of truth for garment design, garment color, trims, bows, decorations, or construction details. ${args.anchorInstruction || ''}` : 'Create a clean front hero image for the requested color.',
           `Pose: ${args.posePrompt}.`,
         ].join(' '),
-      }),
-    });
+    };
+    let response: Response | null = null;
+    let fetchError: Error | null = null;
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        response = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+        });
+        break;
+      } catch (error: unknown) {
+        fetchError =
+          error instanceof Error ? error : new Error('Failed to fetch');
+
+        if (attempt < 2) {
+          await waitFor(600 * (attempt + 1));
+        }
+      }
+    }
+
+    if (!response) {
+      throw fetchError || new Error('Failed to fetch');
+    }
     const data = (await response.json()) as { image?: string; error?: string };
     if (!response.ok || !data.image) throw new Error(data.error || "L'IA ha risposto con un errore");
     const optimizedUrl = await optimizeGeneratedImage(`data:image/png;base64,${data.image}`);
@@ -2779,7 +2987,7 @@ export default function Home() {
   };
 
   const approveAndGenerateAll = async () => {
-    if (!selectedProduct || !previewResult || isPreviewApproved) return;
+    if (!selectedProduct || !previewResult || isProductionComplete) return;
     if (
       selectedAdditionalScenarioSettings.length === 0 &&
       !window.confirm(
@@ -2793,78 +3001,133 @@ export default function Home() {
     setIsPreviewApproved(true);
     scrollToSection('step-5-output', 80);
     try {
-      const next: GeneratedResult[] = [previewResult];
+      let next: GeneratedResult[] = upsertGeneratedResult(generatedResults, previewResult);
+      next = upsertGeneratedResult(next, {
+        ...previewResult,
+        key: `front-${selectedColor}`,
+        kind: 'front',
+        pose: 'Front',
+        color: selectedColor,
+      });
+      setGeneratedResults([...next]);
+
       for (const color of selectedProduct.colors) {
-        next.push(await requestImage({
-          key: `front-${color}`,
-          kind: 'front',
-          pose: 'Front',
-          posePrompt: 'front view, full body, same studio setup, very similar pose to the anchor image',
-          targetColor: color,
-          anchorImageUrl: previewResult.url,
-          anchorInstruction: [
-            'Keep the same generated model identity, framing, lighting, and studio setup as the anchor image.',
-            `Keep the exact same visible ethnicity as the anchor image (${job?.ethnicity}).`,
-            'Do not drift toward another ethnicity or different facial features.',
-            'Keep the pose very similar but not exactly identical.',
-            'Generate a fresh new image, not an edited copy of the anchor image.',
-            'Use the anchor only for continuity. Rebuild the garment only from the original product references for the requested target colorway.',
-            'Do not transfer garment details from the anchor image. The original product references remain the only authority for garment construction and decorative details.',
-          ].join(' '),
-        }));
+        const frontKey = `front-${color}`;
+
+        if (next.some((result) => result.key === frontKey)) {
+          continue;
+        }
+
+        next = upsertGeneratedResult(
+          next,
+          await requestImage({
+            key: frontKey,
+            kind: 'front',
+            pose: 'Front',
+            posePrompt: 'front view, full body, same studio setup, very similar pose to the anchor image',
+            targetColor: color,
+            anchorImageUrl: previewResult.url,
+            anchorInstruction: [
+              'Keep the same generated model identity, framing, lighting, and studio setup as the anchor image.',
+              `Keep the exact same visible ethnicity as the anchor image (${job?.ethnicity}).`,
+              'Do not drift toward another ethnicity or different facial features.',
+              'Keep the pose very similar but not exactly identical.',
+              'Generate a fresh new image, not an edited copy of the anchor image.',
+              'Use the anchor only for continuity. Rebuild the garment only from the original product references for the requested target colorway.',
+              'Do not transfer garment details from the anchor image. The original product references remain the only authority for garment construction and decorative details.',
+            ].join(' '),
+          })
+        );
         setGeneratedResults([...next]);
       }
-      const galleryAnchor = next.find((r) => r.key === `front-${selectedColor}`) || next.find((r) => r.key === `hero-${selectedColor}`) || previewResult;
+      const galleryAnchor =
+        next.find((r) => r.key === `front-${selectedColor}`) ||
+        next.find((r) => r.key === `hero-${selectedColor}`) ||
+        previewResult;
       for (const pose of galleryPoses) {
-        next.push(await requestImage({
-          key: `gallery-${selectedColor}-${pose.key}`,
-          kind: 'gallery',
-          pose: pose.label,
-          posePrompt: pose.prompt,
-          targetColor: selectedColor,
-          anchorImageUrl: galleryAnchor.url,
-          anchorInstruction: `Keep the same generated model identity and the same visible ethnicity as the anchor image (${job?.ethnicity}). Do not drift toward another ethnicity. Use the anchor only for identity and continuity. The original product references remain the only authority for garment design and color. Generate a fresh new shot and change only the pose for this image.`,
-        }));
+        const galleryKey = `gallery-${selectedColor}-${pose.key}`;
+
+        if (next.some((result) => result.key === galleryKey)) {
+          continue;
+        }
+
+        next = upsertGeneratedResult(
+          next,
+          await requestImage({
+            key: galleryKey,
+            kind: 'gallery',
+            pose: pose.label,
+            posePrompt: pose.prompt,
+            targetColor: selectedColor,
+            anchorImageUrl: galleryAnchor.url,
+            anchorInstruction:
+              pose.key === 'back'
+                ? `Keep the same generated model identity and the same visible ethnicity as the anchor image (${job?.ethnicity}). Do not drift toward another ethnicity. Use the anchor only for identity and continuity. The original product references remain the only authority for garment design and color. For this back shot, the model must turn away and show the back of the garment as the dominant visible side. Never present the front of the garment to camera in this image.`
+                : `Keep the same generated model identity and the same visible ethnicity as the anchor image (${job?.ethnicity}). Do not drift toward another ethnicity. Use the anchor only for identity and continuity. The original product references remain the only authority for garment design and color. Generate a fresh new shot and change only the pose for this image.`,
+          })
+        );
         setGeneratedResults([...next]);
       }
       for (const scenario of selectedAdditionalScenarioSettings) {
-        next.push(await requestImage({
-          key: `extra-${selectedColor}-${sanitizeFilePart(scenario.label)}`,
-          kind: 'extra',
-          pose: scenario.label,
-          posePrompt: 'full body lifestyle fashion photo, premium editorial storytelling, the model is actively doing something natural and believable that clearly fits the requested scenario and environment',
-          targetColor: selectedColor,
-          anchorImageUrl: galleryAnchor.url,
-          anchorInstruction: `Keep the same generated model identity and the same visible ethnicity as the anchor image (${job?.ethnicity}). Do not drift toward another ethnicity. Use the anchor only for continuity. The original product references remain the only authority for garment design and color. Generate a fresh new image and adapt only the environment and mood to the requested scenario.`,
-          scenarioOverrideLabel: scenario.label,
-          scenarioOverrideReferenceUrl: shootingReferenceImages[scenario.id],
-        }));
+        const extraKey = `extra-${selectedColor}-${sanitizeFilePart(scenario.label)}`;
+
+        if (next.some((result) => result.key === extraKey)) {
+          continue;
+        }
+
+        next = upsertGeneratedResult(
+          next,
+          await requestImage({
+            key: extraKey,
+            kind: 'extra',
+            pose: scenario.label,
+            posePrompt: 'full body lifestyle fashion photo, premium editorial storytelling, the model is actively doing something natural and believable that clearly fits the requested scenario and environment',
+            targetColor: selectedColor,
+            anchorImageUrl: galleryAnchor.url,
+            anchorInstruction: `Keep the same generated model identity and the same visible ethnicity as the anchor image (${job?.ethnicity}). Do not drift toward another ethnicity. Use the anchor only for continuity. The original product references remain the only authority for garment design and color. Generate a fresh new image and adapt only the environment and mood to the requested scenario. The garment must stay identical to the approved hero shot in silhouette, trims, construction, and decorative details. The environment may change, but the garment itself must not change at all.`,
+            scenarioOverrideLabel: scenario.label,
+            scenarioOverrideReferenceUrl: shootingReferenceImages[scenario.id],
+          })
+        );
         setGeneratedResults([...next]);
       }
       if (isUnisexProduct && alternateGender) {
-        next.push(await requestImage({
-          key: `alternate-${selectedColor}-front-${sanitizeFilePart(alternateGender)}`,
-          kind: 'alternate',
-          pose: `Front ${alternateGender}`,
-          posePrompt: 'front view, full body, same studio setup, clean catalog photo',
-          targetColor: selectedColor,
-          genderOverride: alternateGender,
-        }));
+        const alternateFrontKey = `alternate-${selectedColor}-front-${sanitizeFilePart(alternateGender)}`;
+
+        if (!next.some((result) => result.key === alternateFrontKey)) {
+          next = upsertGeneratedResult(
+            next,
+            await requestImage({
+              key: alternateFrontKey,
+              kind: 'alternate',
+              pose: `Front ${alternateGender}`,
+              posePrompt: 'front view, full body, same studio setup, clean catalog photo',
+              targetColor: selectedColor,
+              genderOverride: alternateGender,
+            })
+          );
+        }
         setGeneratedResults([...next]);
-        next.push(await requestImage({
-          key: `alternate-${selectedColor}-action-${sanitizeFilePart(alternateGender)}`,
-          kind: 'alternate',
-          pose: `In Action ${alternateGender}`,
-          posePrompt: 'natural action pose, realistic movement, commercial fashion photo',
-          targetColor: selectedColor,
-          genderOverride: alternateGender,
-        }));
+        const alternateActionKey = `alternate-${selectedColor}-action-${sanitizeFilePart(alternateGender)}`;
+
+        if (!next.some((result) => result.key === alternateActionKey)) {
+          next = upsertGeneratedResult(
+            next,
+            await requestImage({
+              key: alternateActionKey,
+              kind: 'alternate',
+              pose: `In Action ${alternateGender}`,
+              posePrompt: 'natural action pose, realistic movement, commercial fashion photo',
+              targetColor: selectedColor,
+              genderOverride: alternateGender,
+            })
+          );
+        }
         setGeneratedResults([...next]);
       }
       await generateProductDescription(next);
     } catch (err: unknown) {
       setGenError(err instanceof Error ? err.message : 'Errore sconosciuto');
-      setIsPreviewApproved(false);
     } finally {
       setStage('idle');
     }
@@ -2993,13 +3256,19 @@ export default function Home() {
   const renderGeneratedResultCard = (result: GeneratedResult) => {
     const isRegenerationOpen = openRegenerationKey === result.key;
     const isCurrentRegeneration = regeneratingKey === result.key;
+    const isExcludedFromSync = excludedSyncResultKeys.includes(result.key);
     const pendingComparison =
       pendingRegenerationComparison?.key === result.key
         ? pendingRegenerationComparison
         : null;
 
     return (
-      <div key={result.key} className="rounded-2xl border border-[#D7D9DD] p-4">
+      <div
+        key={result.key}
+        className={`rounded-2xl border p-4 ${
+          isExcludedFromSync ? 'border-amber-300 bg-amber-50/40' : 'border-[#D7D9DD]'
+        }`}
+      >
         <div className="relative mb-3 aspect-[3/4] overflow-hidden rounded-xl bg-slate-100">
           <button
             type="button"
@@ -3024,7 +3293,15 @@ export default function Home() {
             {result.color}
           </span>
         </div>
-        <div className="mt-3">
+        <div className="mt-3 space-y-2">
+          <label className="flex items-center gap-2 rounded-xl border border-[#D7D9DD] bg-white px-3 py-2 text-[11px] font-bold text-[#103D66]">
+            <input
+              type="checkbox"
+              checked={!isExcludedFromSync}
+              onChange={() => toggleSyncInclusion(result.key)}
+            />
+            <span>{isExcludedFromSync ? 'Esclusa dalla sync WooCommerce' : 'Includi nella sync WooCommerce'}</span>
+          </label>
           <button
             type="button"
             onClick={() =>
@@ -4054,6 +4331,23 @@ export default function Home() {
                         <p className="mb-3 text-sm text-slate-500">
                           Seleziona una o piu ambientazioni aggiuntive. Dopo l&apos;approvazione, l&apos;AI generera immagini extra separate da quelle del set principale.
                         </p>
+                        <div className="mb-3 grid gap-2">
+                          <div className="text-[10px] font-black uppercase tracking-wide text-[#4C6583]">
+                            Location iconica per le ambientazioni extra
+                          </div>
+                          <select
+                            value={selectedExtraScenarioLocation}
+                            onChange={(event) => setSelectedExtraScenarioLocation(event.target.value)}
+                            disabled={isBusy}
+                            className="rounded-xl border border-[#D7D9DD] bg-white px-3 py-2 text-sm font-bold text-[#103D66]"
+                          >
+                            {extraScenarioLocationOptions.map((location) => (
+                              <option key={location} value={location}>
+                                {location}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                         <div className="flex flex-wrap gap-2">
                           {realLifeSettings.map((scenario) => (
                             <button
@@ -4072,8 +4366,8 @@ export default function Home() {
                           ))}
                         </div>
                       </div>
-                      <button onClick={approveAndGenerateAll} disabled={isBusy || isPreviewApproved} className={`flex w-full items-center justify-center gap-3 rounded-2xl px-4 py-4 text-sm font-black text-white ${isBusy || isPreviewApproved ? 'bg-slate-400' : 'bg-[#6DA34D]'}`}>
-                        {stage === 'production' ? <><RefreshCw className="animate-spin" size={18} /> Produzione...</> : isPreviewApproved ? <><CheckCircle2 size={18} /> Approvata</> : <><CheckCircle2 size={18} /> Approva e genera tutto</>}
+                      <button onClick={approveAndGenerateAll} disabled={isBusy || isProductionComplete} className={`flex w-full items-center justify-center gap-3 rounded-2xl px-4 py-4 text-sm font-black text-white ${isBusy || isProductionComplete ? 'bg-slate-400' : 'bg-[#6DA34D]'}`}>
+                        {stage === 'production' ? <><RefreshCw className="animate-spin" size={18} /> Produzione...</> : isProductionComplete ? <><CheckCircle2 size={18} /> Completata</> : isPreviewApproved ? <><RefreshCw size={18} /> Continua generazione</> : <><CheckCircle2 size={18} /> Approva e genera tutto</>}
                       </button>
                     </div>
                   </div>
@@ -4268,6 +4562,9 @@ export default function Home() {
                 <p className="mb-4 text-sm text-slate-500">
                   Se scegli la prima opzione, la galleria prodotto viene rimpiazzata dal nuovo set. Se scegli la seconda, il nuovo set viene aggiunto lasciando anche le immagini gia presenti.
                 </p>
+                <div className="mb-4 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                  Immagini incluse nella sincronizzazione: <span className="font-black text-[#103D66]">{includedSyncResults.length}</span> su {generatedResults.length}
+                </div>
                 <div className="mb-4 flex flex-wrap items-center gap-2">
                   {selectedProduct?.backendUrl && (
                     <a
@@ -4290,7 +4587,7 @@ export default function Home() {
                     </a>
                   )}
                 </div>
-                <button onClick={syncToWooCommerce} disabled={generatedResults.length === 0 || isSyncingWoo} className="flex w-full items-center justify-center gap-3 rounded-2xl bg-[#6DA34D] py-5 text-lg font-black text-white disabled:bg-slate-300"><Upload size={24} /> {isSyncingWoo ? 'Sincronizzazione in corso...' : 'Sincronizza su WooCommerce'}</button>
+                <button onClick={syncToWooCommerce} disabled={includedSyncResults.length === 0 || isSyncingWoo} className="flex w-full items-center justify-center gap-3 rounded-2xl bg-[#6DA34D] py-5 text-lg font-black text-white disabled:bg-slate-300"><Upload size={24} /> {isSyncingWoo ? 'Sincronizzazione in corso...' : 'Sincronizza su WooCommerce'}</button>
               </div>
             </div>
           )}
