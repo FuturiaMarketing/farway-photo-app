@@ -1,0 +1,364 @@
+[
+    {
+        "key": "group_product_base_003",
+        "title": "Prodotto | Base (tutti i prodotti)",
+        "fields": [
+            {
+                "key": "field_materiale_001",
+                "label": "Materiale",
+                "name": "fw_materiale",
+                "aria-label": "",
+                "type": "checkbox",
+                "instructions": "",
+                "required": 0,
+                "conditional_logic": 0,
+                "wrapper": {
+                    "width": "33.33",
+                    "class": "",
+                    "id": ""
+                },
+                "choices": {
+                    "cotone_biologico": "cotone biologico",
+                    "cotone": "cotone",
+                    "velluto": "velluto",
+                    "denim": "denim",
+                    "voile": "voile",
+                    "lino": "lino",
+                    "mille_righe": "mille righe",
+                    "mussola": "Mussola"
+                },
+                "default_value": [],
+                "return_format": "value",
+                "allow_custom": 0,
+                "allow_in_bindings": 1,
+                "layout": "horizontal",
+                "toggle": 0,
+                "save_custom": 0,
+                "custom_choice_button_text": "Aggiungi nuova scelta"
+            },
+            {
+                "key": "field_composizione_materiale_003",
+                "label": "Composizione del materiale",
+                "name": "fw_composizione_del_materiale_v2",
+                "aria-label": "",
+                "type": "radio",
+                "instructions": "",
+                "required": 0,
+                "conditional_logic": 0,
+                "wrapper": {
+                    "width": "33.33",
+                    "class": "",
+                    "id": ""
+                },
+                "choices": {
+                    "100pct_cotone_organico": "100% cotone organico",
+                    "100pct_cotone": "100% cotone",
+                    "95pct_di_cotone_organico_certificato_gots_e_5pct_di_elastane": "95% di cotone organico certificato GOTS e 5% di elastane",
+                    "55pct_lino_e_45pct_cotone": "55% lino e 45% cotone",
+                    "80pct_cotone_e_20pct_poliestere": "80% cotone e 20% poliestere"
+                },
+                "default_value": "",
+                "return_format": "value",
+                "allow_null": 1,
+                "other_choice": 0,
+                "allow_in_bindings": 1,
+                "layout": "horizontal",
+                "save_other_choice": 0
+            },
+            {
+                "key": "field_rifiniture_003",
+                "label": "Rifiniture",
+                "name": "fw_rifiniture",
+                "aria-label": "",
+                "type": "checkbox",
+                "instructions": "",
+                "required": 0,
+                "conditional_logic": 0,
+                "wrapper": {
+                    "width": "33.33",
+                    "class": "",
+                    "id": ""
+                },
+                "choices": {
+                    "rifiniture_con_doppio_tessuto": "rifiniture con doppio tessuto",
+                    "corpino_interamente_doppiato_con_cuciture_in_pulizia": "corpino interamente doppiato con cuciture in pulizia"
+                },
+                "default_value": [],
+                "return_format": "value",
+                "allow_custom": 1,
+                "save_custom": 0,
+                "allow_in_bindings": 1,
+                "layout": "horizontal",
+                "toggle": 0,
+                "custom_choice_button_text": "Aggiungi nuova scelta"
+            },
+            {
+                "key": "field_orlo_003",
+                "label": "Orlo",
+                "name": "fw_orlo_v2",
+                "aria-label": "",
+                "type": "radio",
+                "instructions": "",
+                "required": 0,
+                "conditional_logic": 0,
+                "wrapper": {
+                    "width": "33.33",
+                    "class": "",
+                    "id": ""
+                },
+                "choices": {
+                    "rifinito_con_doppio_tessuto": "rifinito con doppio tessuto",
+                    "sfilacciato_con_doppio_tessuto": "sfilacciato con doppio tessuto"
+                },
+                "default_value": "",
+                "return_format": "value",
+                "allow_null": 1,
+                "other_choice": 1,
+                "save_other_choice": 0,
+                "allow_in_bindings": 1,
+                "layout": "horizontal"
+            },
+            {
+                "key": "field_logo_003",
+                "label": "Logo",
+                "name": "fw_logo_v2",
+                "aria-label": "",
+                "type": "radio",
+                "instructions": "",
+                "required": 0,
+                "conditional_logic": 0,
+                "wrapper": {
+                    "width": "33.33",
+                    "class": "",
+                    "id": ""
+                },
+                "choices": {
+                    "visibile": "visibile",
+                    "invisibile": "invisibile"
+                },
+                "default_value": "",
+                "return_format": "value",
+                "allow_null": 1,
+                "other_choice": 0,
+                "allow_in_bindings": 1,
+                "layout": "horizontal",
+                "save_other_choice": 0
+            },
+            {
+                "key": "field_vestibilita_003",
+                "label": "Vestibilità",
+                "name": "fw_vestibilita_v2",
+                "aria-label": "",
+                "type": "radio",
+                "instructions": "",
+                "required": 0,
+                "conditional_logic": 0,
+                "wrapper": {
+                    "width": "33.33",
+                    "class": "",
+                    "id": ""
+                },
+                "choices": {
+                    "regolare": "regolare",
+                    "aderente": "aderente",
+                    "oversize": "oversize"
+                },
+                "default_value": "",
+                "return_format": "value",
+                "allow_null": 1,
+                "other_choice": 0,
+                "allow_in_bindings": 1,
+                "layout": "horizontal",
+                "save_other_choice": 0
+            },
+            {
+                "key": "field_dove_creato_003",
+                "label": "Dove è stato creato",
+                "name": "fw_dove_e_stato_creato_v2",
+                "aria-label": "",
+                "type": "radio",
+                "instructions": "",
+                "required": 0,
+                "conditional_logic": 0,
+                "wrapper": {
+                    "width": "33.33",
+                    "class": "",
+                    "id": ""
+                },
+                "choices": {
+                    "fabriano": "Fabriano",
+                    "sabaudia": "Sabaudia",
+                    "bologna": "Bologna"
+                },
+                "default_value": "",
+                "return_format": "value",
+                "allow_null": 1,
+                "other_choice": 0,
+                "allow_in_bindings": 1,
+                "layout": "horizontal",
+                "save_other_choice": 0
+            },
+            {
+                "key": "field_cura_lavaggio_003",
+                "label": "Cura e istruzioni di lavaggio",
+                "name": "fw_cura_e_istruzioni_di_lavaggio_v2",
+                "aria-label": "",
+                "type": "radio",
+                "instructions": "",
+                "required": 0,
+                "conditional_logic": 0,
+                "wrapper": {
+                    "width": "33.33",
+                    "class": "",
+                    "id": ""
+                },
+                "choices": {
+                    "delicato": "delicato",
+                    "normale": "normale",
+                    "resistente": "resistente"
+                },
+                "default_value": "",
+                "return_format": "value",
+                "allow_null": 1,
+                "other_choice": 0,
+                "allow_in_bindings": 1,
+                "layout": "horizontal",
+                "save_other_choice": 0
+            },
+            {
+                "key": "field_699dd68397a98",
+                "label": "Occasione d'uso",
+                "name": "occasione_duso",
+                "aria-label": "",
+                "type": "checkbox",
+                "instructions": "",
+                "required": 0,
+                "conditional_logic": 0,
+                "wrapper": {
+                    "width": "33.33",
+                    "class": "",
+                    "id": ""
+                },
+                "choices": {
+                    "casa_nonni": "A casa dei nonni",
+                    "passeggiata_famiglia": "Passeggiata con mamma e papà",
+                    "compleanno": "Compleanno",
+                    "vestito_domenica": "Il vestito della domenica",
+                    "sera_estate_gelato": "Una sera d’estate: gelato con gli amici",
+                    "occasioni_eleganti": "Cene o pranzi semplici ed eleganti"
+                },
+                "default_value": [],
+                "return_format": "value",
+                "allow_custom": 0,
+                "allow_in_bindings": 0,
+                "layout": "horizontal",
+                "toggle": 0,
+                "save_custom": 0,
+                "custom_choice_button_text": "Aggiungi nuova scelta"
+            },
+            {
+                "key": "field_699b6a28b2856",
+                "label": "Tempistica di progettazione",
+                "name": "tempistica_di_progettazione",
+                "aria-label": "",
+                "type": "text",
+                "instructions": "Metti il numero di ore",
+                "required": 0,
+                "conditional_logic": 0,
+                "wrapper": {
+                    "width": "50",
+                    "class": "",
+                    "id": ""
+                },
+                "default_value": "",
+                "maxlength": "",
+                "allow_in_bindings": 0,
+                "placeholder": "",
+                "prepend": "",
+                "append": "ore"
+            },
+            {
+                "key": "field_699b6a3ab2857",
+                "label": "Tempistica di fabbricazione",
+                "name": "tempistica_di_fabbricazione",
+                "aria-label": "",
+                "type": "text",
+                "instructions": "Metti il numero di ore",
+                "required": 0,
+                "conditional_logic": 0,
+                "wrapper": {
+                    "width": "50",
+                    "class": "",
+                    "id": ""
+                },
+                "default_value": "",
+                "maxlength": "",
+                "allow_in_bindings": 0,
+                "placeholder": "",
+                "prepend": "",
+                "append": "ore"
+            },
+            {
+                "key": "field_design_003",
+                "label": "Design",
+                "name": "fw_design",
+                "aria-label": "",
+                "type": "wysiwyg",
+                "instructions": "",
+                "required": 0,
+                "conditional_logic": 0,
+                "wrapper": {
+                    "width": "50",
+                    "class": "",
+                    "id": ""
+                },
+                "default_value": "",
+                "allow_in_bindings": 0,
+                "tabs": "all",
+                "toolbar": "basic",
+                "media_upload": 1,
+                "delay": 0
+            },
+            {
+                "key": "field_note_designer_003",
+                "label": "Note della designer",
+                "name": "fw_note_della_designer",
+                "aria-label": "",
+                "type": "wysiwyg",
+                "instructions": "",
+                "required": 0,
+                "conditional_logic": 0,
+                "wrapper": {
+                    "width": "50",
+                    "class": "",
+                    "id": ""
+                },
+                "default_value": "",
+                "allow_in_bindings": 1,
+                "tabs": "all",
+                "toolbar": "basic",
+                "media_upload": 0,
+                "delay": 0
+            }
+        ],
+        "location": [
+            [
+                {
+                    "param": "post_type",
+                    "operator": "==",
+                    "value": "product"
+                }
+            ]
+        ],
+        "menu_order": 0,
+        "position": "normal",
+        "style": "default",
+        "label_placement": "top",
+        "instruction_placement": "label",
+        "hide_on_screen": "",
+        "active": true,
+        "description": "",
+        "show_in_rest": 0,
+        "display_title": ""
+    }
+]
