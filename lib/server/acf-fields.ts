@@ -29,6 +29,11 @@ type AcfExportGroup = {
   location?: AcfLocationRule[][];
 };
 
+export type AcfMetaDataEntry = {
+  key?: string;
+  value?: unknown;
+};
+
 export type AcfProductCategory = {
   id: number;
   name: string;
@@ -238,6 +243,30 @@ function fieldToDefinition(group: AcfExportGroup, field: AcfExportField): AcfFie
   };
 }
 
+function toTitleCaseLabel(name: string) {
+  return String(name || '')
+    .replace(/_/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
+    .join(' ');
+}
+
+function inferRenderableType(rawValue: unknown): AcfRenderableFieldType {
+  if (Array.isArray(rawValue)) {
+    return 'checkbox';
+  }
+
+  const normalized = String(rawValue || '').trim();
+
+  if (/<[a-z][\s\S]*>/i.test(normalized)) {
+    return 'wysiwyg';
+  }
+
+  return 'text';
+}
+
 export async function getAcfFieldsForProduct(params: {
   postType?: string;
   categories?: AcfProductCategory[];
@@ -279,6 +308,49 @@ export async function getAcfFieldsForProduct(params: {
   }
 
   return definitions;
+}
+
+export function inferAcfFieldsFromMetaData(
+  metaData: AcfMetaDataEntry[],
+  knownFields: AcfFieldDefinition[] = []
+) {
+  const knownNames = new Set(knownFields.map((field) => field.name));
+  const metaMap = new Map(
+    metaData
+      .filter((meta) => typeof meta.key === 'string' && meta.key.length > 0)
+      .map((meta) => [String(meta.key), meta.value])
+  );
+  const inferredDefinitions: AcfFieldDefinition[] = [];
+
+  for (const [key, value] of metaMap.entries()) {
+    if (!key || key.startsWith('_') || key === 'occasione_duso' || knownNames.has(key)) {
+      continue;
+    }
+
+    const fieldKey = metaMap.get(`_${key}`);
+
+    if (typeof fieldKey !== 'string' || !fieldKey.startsWith('field_')) {
+      continue;
+    }
+
+    inferredDefinitions.push({
+      key: fieldKey,
+      name: key,
+      label: toTitleCaseLabel(key),
+      type: inferRenderableType(value),
+      instructions: '',
+      choices: [],
+      allowCustom: true,
+      allowNull: true,
+      placeholder: '',
+      append: '',
+      groupKey: 'inferred_product_meta',
+      groupTitle: 'Campi presenti nel prodotto',
+    });
+    knownNames.add(key);
+  }
+
+  return inferredDefinitions;
 }
 
 export function normalizeAcfValue(

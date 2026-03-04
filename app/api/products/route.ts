@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import {
   getAcfFieldsForProduct,
+  inferAcfFieldsFromMetaData,
   normalizeAcfValue,
   type AcfFieldDefinition,
 } from '@/lib/server/acf-fields';
+import { ensureInitialDatabaseCompaction } from '@/lib/server/db';
 import { ensureLegacyLocalDataMigrated } from '@/lib/server/legacy-storage-migration';
 import { getResolvedWooCommerceSettings } from '@/lib/server/woocommerce-settings';
 
@@ -48,6 +50,7 @@ type WooCommerceProduct = {
 
 export async function GET(req: Request) {
   try {
+    await ensureInitialDatabaseCompaction();
     await ensureLegacyLocalDataMigrated();
 
     const url = new URL(req.url);
@@ -212,7 +215,11 @@ export async function GET(req: Request) {
         postType: 'product',
         categories: resolvedCategories,
       });
-      const acfValues = buildAcfValues(product.meta_data || [], acfFields);
+      const inferredAcfFields = inferAcfFieldsFromMetaData(product.meta_data || [], acfFields);
+      const allAcfFields = [...acfFields, ...inferredAcfFields].filter(
+        (field) => field.name !== 'occasione_duso'
+      );
+      const acfValues = buildAcfValues(product.meta_data || [], allAcfFields);
 
       return {
         id: product.id,
@@ -226,7 +233,7 @@ export async function GET(req: Request) {
         frontendUrl: product.permalink || '',
         backendUrl: `${cleanUrl}/wp-admin/post.php?post=${product.id}&action=edit`,
         categories: resolvedCategories,
-        acfFields,
+        acfFields: allAcfFields,
         acfValues,
       };
     }));

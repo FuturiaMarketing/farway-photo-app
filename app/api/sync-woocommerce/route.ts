@@ -3,6 +3,7 @@ import path from 'path';
 import { NextResponse } from 'next/server';
 import {
   getAcfFieldsForProduct,
+  inferAcfFieldsFromMetaData,
   normalizeAcfValue,
 } from '@/lib/server/acf-fields';
 import {
@@ -17,7 +18,7 @@ import { getResolvedWooCommerceSettings } from '@/lib/server/woocommerce-setting
 
 type GeneratedResult = {
   key: string;
-  kind: 'hero' | 'front' | 'gallery' | 'extra';
+  kind: 'hero' | 'front' | 'gallery' | 'extra' | 'alternate';
   pose: string;
   color: string;
   url: string;
@@ -32,7 +33,9 @@ type SyncRequest = {
   productShortDescriptionHtml?: string;
   acfValues?: Record<string, unknown>;
   selectedAdditionalScenarioLabels?: string[];
-  selectedExtraScenarioLocation?: string;
+  selectedUrbanExtraScenarioLocation?: string;
+  selectedExtraUrbanScenarioLocation?: string;
+  primarySyncResultKey?: string;
   companionProductIds?: number[];
   syncMode?: 'replace' | 'keep-existing';
 };
@@ -545,7 +548,12 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
           .filter((value): value is number => Number.isInteger(value) && value > 0 && value !== body.productId)
       )
     );
-    const selectedExtraScenarioLocation = String(body.selectedExtraScenarioLocation || '').trim();
+    const selectedUrbanExtraScenarioLocation = String(
+      body.selectedUrbanExtraScenarioLocation || ''
+    ).trim();
+    const selectedExtraUrbanScenarioLocation = String(
+      body.selectedExtraUrbanScenarioLocation || ''
+    ).trim();
     const descriptionHtml = String(body.productDescriptionHtml || '').trim();
     const shortDescriptionHtml =
       String(body.productShortDescriptionHtml || '').trim() ||
@@ -572,16 +580,14 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
     const frontResults = body.generatedResults.filter((result) => result.kind === 'front');
     const galleryResults = body.generatedResults.filter((result) => result.kind === 'gallery');
     const extraResults = body.generatedResults.filter((result) => result.kind === 'extra');
+    const selectedPrimaryResult =
+      body.generatedResults.find((result) => result.key === body.primarySyncResultKey) || null;
     const actionResult =
       galleryResults.find((result) => result.pose.toLowerCase().includes('action')) ||
       body.generatedResults.find((result) => result.pose.toLowerCase().includes('action'));
 
     if (!actionResult) {
       throw new Error('Manca una foto "In Action" da usare come immagine predefinita.');
-    }
-
-    if (frontResults.length === 0) {
-      throw new Error('Mancano le foto frontali per sincronizzare le varianti colore.');
     }
 
     const publicBaseUrl = buildPublicBaseUrl(req);
@@ -713,16 +719,35 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
         parentId: category.parent || 0,
       })),
     });
+    const inferredAcfFields = inferAcfFieldsFromMetaData(
+      product.meta_data || [],
+      applicableAcfFields
+    );
+    const allApplicableAcfFields = [...applicableAcfFields, ...inferredAcfFields].filter(
+      (field) => field.name !== occasionDusoFieldName
+    );
     const submittedAcfValues = body.acfValues || {};
     const knownColors = Array.from(new Set(frontResults.map((result) => result.color)));
     const frontByColor = new Map(
       frontResults.map((result) => [normalizeColor(result.color), syncedImageUrls.get(result.key) || ''])
     );
+    const variationColors = Array.from(
+      new Set(
+        variations
+          .map((variation) => findColorFromVariation(variation, knownColors))
+          .filter((value): value is string => Boolean(value))
+      )
+    );
+    const missingFrontColors = variationColors.filter(
+      (color) => !frontByColor.has(normalizeColor(color))
+    );
     const buildAssetName = (result: GeneratedResult) =>
       `${body.productName} ${result.color} ${result.pose} di Farway Milano`;
 
+    const featuredResult = selectedPrimaryResult || actionResult;
+
     const desiredProductImages = [
-      actionResult,
+      featuredResult,
       ...galleryOrder,
     ].map((result) => ({
       assetKey: result.key,
@@ -743,6 +768,23 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
         .filter((image): image is Required<Pick<NonNullable<WooProductResponse['images']>[number], 'id' | 'name'>> => typeof image.id === 'number' && Boolean(image.name))
         .map((image) => [image.name, image.id])
     );
+    const preservedExistingFrontImages =
+      syncMode === 'replace'
+        ? (product.images || [])
+            .filter((image) =>
+              Boolean(
+                image.name &&
+                  missingFrontColors.some(
+                    (color) =>
+                      image.name === `${body.productName} ${color} Front di Farway Milano`
+                  )
+              )
+            )
+            .map((image) =>
+              typeof image.id === 'number' ? { id: image.id } : image.src ? { src: image.src } : null
+            )
+            .filter((image): image is { id: number } | { src: string } => image !== null)
+        : [];
     const existingMetaByKey = new Map(
       (product.meta_data || [])
         .filter(
@@ -755,16 +797,34 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
     const existingTagIds = (product.tags || [])
       .map((tag) => (typeof tag.id === 'number' ? tag.id : null))
       .filter((value): value is number => value !== null);
-    let selectedLocationTagId: number | null = null;
-
-    if (selectedExtraScenarioLocation && (body.selectedAdditionalScenarioLabels || []).length > 0) {
-      selectedLocationTagId = await ensureWooProductTagId(
-        cleanUrl,
-        authQuery,
-        selectedExtraScenarioLocation
-      );
-    }
-    const acfMetaPayload = applicableAcfFields.flatMap((field) => {
+    const selectedScenarioLabelsNormalized = (body.selectedAdditionalScenarioLabels || []).map((label) =>
+      normalizeOccasionLabel(label)
+    );
+    const hasUrbanScenario = selectedScenarioLabelsNormalized.some(
+      (label) =>
+        label.includes('passeggiata con mamma e papa') ||
+        label.includes("una sera d'estate: gelato con gli amici") ||
+        label.includes('pomeriggio al museo')
+    );
+    const hasExtraUrbanScenario = selectedScenarioLabelsNormalized.some(
+      (label) => label.includes('weekend al lago') || label.includes('picnic al parco')
+    );
+    const desiredLocationTagNames = Array.from(
+      new Set(
+        [
+          hasUrbanScenario ? selectedUrbanExtraScenarioLocation : '',
+          hasExtraUrbanScenario ? selectedExtraUrbanScenarioLocation : '',
+        ].filter(Boolean)
+      )
+    );
+    const selectedLocationTagIds = (
+      await Promise.all(
+        desiredLocationTagNames.map((tagName) =>
+          ensureWooProductTagId(cleanUrl, authQuery, tagName)
+        )
+      )
+    ).filter((value): value is number => typeof value === 'number');
+    const acfMetaPayload = allApplicableAcfFields.flatMap((field) => {
       const normalizedSubmittedValue = Object.prototype.hasOwnProperty.call(
         submittedAcfValues,
         field.name
@@ -871,6 +931,7 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
           ? { id: assetIdByKey.get(asset.assetKey) }
           : { src: asset.src, name: asset.name, alt: asset.alt }
       ),
+      ...preservedExistingFrontImages,
       ...existingProductImages,
     ];
 
@@ -890,11 +951,13 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
         cross_sell_ids: Array.from(
           new Set([...(product.cross_sell_ids || []), ...companionProductIds])
         ),
-        ...(selectedLocationTagId
+        ...(selectedLocationTagIds.length > 0
           ? {
-              tags: Array.from(new Set([...existingTagIds, selectedLocationTagId])).map((id) => ({
-                id,
-              })),
+              tags: Array.from(new Set([...existingTagIds, ...selectedLocationTagIds])).map(
+                (id) => ({
+                  id,
+                })
+              ),
             }
           : {}),
         ...(acfMetaPayload.length > 0 ? { meta_data: acfMetaPayload } : {}),
@@ -976,9 +1039,10 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
       companionProductIds.length > 0
         ? ` Articoli collegati aggiornati con ${updatedCrossSellIds.length} cross-sell totali.`
         : '';
-    const locationTagMessage = selectedLocationTagId
-      ? ` Tag location aggiornato: ${selectedExtraScenarioLocation}.`
-      : '';
+    const locationTagMessage =
+      desiredLocationTagNames.length > 0
+        ? ` Tag location aggiornati: ${desiredLocationTagNames.join(', ')}.`
+        : '';
     const occasionMessage = ` Campo ACF occasioni d'uso aggiornato con ${occasioneDusoValues.length} valori.`;
 
     const message = `${
