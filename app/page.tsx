@@ -54,6 +54,12 @@ type Product = { id: number; name: string; images: string[]; image: string; colo
 type Job = { id: string; modelAge: string; gender: string; ethnicity: string; scenario: string; fit: string; length: string; status: 'pending' };
 type SelectedSourceImage = { url: string; view: SourceView; color: string; mode: SourceReferenceMode };
 type GeneratedResult = { key: string; kind: 'hero' | 'front' | 'gallery' | 'extra' | 'alternate'; pose: string; color: string; url: string };
+type GeneratedAcfContent = {
+  designHtml?: string;
+  designerNoteHtml?: string;
+  designHours?: string;
+  manufacturingHours?: string;
+};
 type ActiveTab = 'products' | 'setup' | 'gallery';
 type Stage = 'idle' | 'hero' | 'production';
 type WooSyncMode = 'replace' | 'keep-existing';
@@ -61,7 +67,7 @@ type ProductProgressFilter = 'all' | 'todo' | 'in-progress' | 'completed';
 type ManualProductStatus = ProductProgressFilter | 'auto';
 type CompanionRole = string;
 type ExtraScenarioLocationKind = 'urban' | 'extra-urban';
-type ExtraScenarioContextKind = ExtraScenarioLocationKind | 'dedicated';
+type ExtraScenarioContextKind = ExtraScenarioLocationKind | 'indoor';
 type ProductSession = {
   selectedSourceImages: SelectedSourceImage[];
   manualSourceImages: string[];
@@ -78,7 +84,9 @@ type ProductSession = {
   secondaryCompanionFit: string;
   secondaryCompanionLength: string;
   selectedAdditionalScenarios: string[];
-  selectedExtraScenarioLocation: string;
+  selectedUrbanExtraScenarioLocation: string;
+  selectedExtraUrbanScenarioLocation: string;
+  selectedExtraScenarioLocation?: string;
   generatedDescriptionHtml: string;
   generatedShortDescriptionHtml: string;
   acfValues: AcfFieldValues;
@@ -139,7 +147,8 @@ const extraScenarioLocationOptions = [
   ...urbanExtraScenarioLocationOptions,
   ...extraUrbanExtraScenarioLocationOptions,
 ];
-const defaultExtraScenarioLocation = urbanExtraScenarioLocationOptions[0].label;
+const defaultUrbanExtraScenarioLocation = urbanExtraScenarioLocationOptions[0].label;
+const defaultExtraUrbanScenarioLocation = extraUrbanExtraScenarioLocationOptions[0].label;
 const defaultStudioSettings: AmbientazioneSetting[] = [
   { id: 'default-studio-bianco', label: 'Studio sfondo bianco', hasReferenceImage: false },
   { id: 'default-studio-caldo', label: 'Studio sfondo neutro caldo', hasReferenceImage: false },
@@ -181,8 +190,38 @@ function getExtraScenarioLocationOption(locationLabel: string | null | undefined
   return extraScenarioLocationOptions.find((option) => option.label === locationLabel) || null;
 }
 
-function coerceExtraScenarioLocationLabel(locationLabel: string | null | undefined) {
-  return getExtraScenarioLocationOption(locationLabel)?.label || defaultExtraScenarioLocation;
+function coerceUrbanExtraScenarioLocationLabel(
+  locationLabel: string | null | undefined,
+  legacyLocationLabel?: string | null
+) {
+  const direct = getExtraScenarioLocationOption(locationLabel);
+  if (direct?.kind === 'urban') {
+    return direct.label;
+  }
+
+  const legacy = getExtraScenarioLocationOption(legacyLocationLabel);
+  if (legacy?.kind === 'urban') {
+    return legacy.label;
+  }
+
+  return defaultUrbanExtraScenarioLocation;
+}
+
+function coerceExtraUrbanScenarioLocationLabel(
+  locationLabel: string | null | undefined,
+  legacyLocationLabel?: string | null
+) {
+  const direct = getExtraScenarioLocationOption(locationLabel);
+  if (direct?.kind === 'extra-urban') {
+    return direct.label;
+  }
+
+  const legacy = getExtraScenarioLocationOption(legacyLocationLabel);
+  if (legacy?.kind === 'extra-urban') {
+    return legacy.label;
+  }
+
+  return defaultExtraUrbanScenarioLocation;
 }
 
 function getExtraScenarioContextKind(scenarioLabel: string): ExtraScenarioContextKind {
@@ -203,45 +242,71 @@ function getExtraScenarioContextKind(scenarioLabel: string): ExtraScenarioContex
     return 'extra-urban';
   }
 
-  return 'dedicated';
+  return 'indoor';
 }
 
-function buildExtraScenarioLocationPrompt(scenarioLabel: string, locationLabel: string) {
+function getEffectiveExtraScenarioLocationLabel(
+  scenarioLabel: string,
+  urbanLocationLabel: string,
+  extraUrbanLocationLabel: string
+) {
   const scenarioKind = getExtraScenarioContextKind(scenarioLabel);
-  const locationOption = getExtraScenarioLocationOption(locationLabel);
 
-  if (!locationOption) {
-    return `Keep this ambientazione in a naturally coherent Italian setting that fits "${scenarioLabel}".`;
+  if (scenarioKind === 'urban') {
+    return coerceUrbanExtraScenarioLocationLabel(urbanLocationLabel);
   }
 
-  if (scenarioKind === 'dedicated') {
-    return `This ambientazione should use its own naturally coherent setting for "${scenarioLabel}". Do not force the selected iconic location (${locationLabel}) into this scene.`;
+  if (scenarioKind === 'extra-urban') {
+    return coerceExtraUrbanScenarioLocationLabel(extraUrbanLocationLabel);
   }
 
-  if (locationOption.kind === scenarioKind) {
-    return `Set this ambientazione in ${locationLabel}, using recognizable but tasteful spatial cues and atmosphere coherent with ${locationLabel}.`;
-  }
-
-  return `The selected iconic location (${locationLabel}) is not compatible with "${scenarioLabel}". Do not mix them. Ignore ${locationLabel} for this shot and place the scene in a naturally coherent ${scenarioKind === 'urban' ? 'urban Italian' : 'extra-urban Italian'} setting that fits "${scenarioLabel}".`;
+  return null;
 }
 
-function describeExtraScenarioLocationUsage(scenarioLabel: string, locationLabel: string) {
+function buildExtraScenarioLocationPrompt(
+  scenarioLabel: string,
+  urbanLocationLabel: string,
+  extraUrbanLocationLabel: string
+) {
   const scenarioKind = getExtraScenarioContextKind(scenarioLabel);
-  const locationOption = getExtraScenarioLocationOption(locationLabel);
+  const effectiveLocationLabel = getEffectiveExtraScenarioLocationLabel(
+    scenarioLabel,
+    urbanLocationLabel,
+    extraUrbanLocationLabel
+  );
 
-  if (!locationOption) {
-    return 'Usa un contesto dedicato coerente con la scena';
+  if (scenarioKind === 'indoor') {
+    return `This ambientazione should use its own naturally coherent indoor setting for "${scenarioLabel}". Do not force any iconic urban or extra-urban location into this scene.`;
   }
 
-  if (scenarioKind === 'dedicated') {
-    return 'Usa un contesto dedicato, senza forzare la location iconica';
+  if (effectiveLocationLabel) {
+    return `Set this ambientazione in ${effectiveLocationLabel}, using recognizable but tasteful spatial cues and atmosphere coherent with ${effectiveLocationLabel}.`;
   }
 
-  if (locationOption.kind === scenarioKind) {
-    return `Usa ${locationLabel}`;
+  return `Place this ambientazione in a naturally coherent ${scenarioKind === 'urban' ? 'urban Italian' : 'extra-urban Italian'} setting that fits "${scenarioLabel}".`;
+}
+
+function describeExtraScenarioLocationUsage(
+  scenarioLabel: string,
+  urbanLocationLabel: string,
+  extraUrbanLocationLabel: string
+) {
+  const scenarioKind = getExtraScenarioContextKind(scenarioLabel);
+  const effectiveLocationLabel = getEffectiveExtraScenarioLocationLabel(
+    scenarioLabel,
+    urbanLocationLabel,
+    extraUrbanLocationLabel
+  );
+
+  if (scenarioKind === 'indoor') {
+    return 'Usa un contesto indoor dedicato, senza forzare una location iconica';
   }
 
-  return `Ignora ${locationLabel} e usa un contesto ${scenarioKind === 'urban' ? 'urbano' : 'extra urbano'} coerente`;
+  if (effectiveLocationLabel) {
+    return `Usa ${effectiveLocationLabel}`;
+  }
+
+  return `Usa un contesto ${scenarioKind === 'urban' ? 'urbano' : 'extra urbano'} coerente`;
 }
 
 function buildProductSessionKey(projectId: string, productId: number) {
@@ -532,6 +597,7 @@ async function convertImageToJpegForWooSync(dataUrl: string) {
 async function uploadWooSyncImageReference(
   projectId: string,
   resultKey: string,
+  result: GeneratedResult,
   dataUrl: string
 ) {
   if (!dataUrl.startsWith('data:image/')) {
@@ -545,6 +611,7 @@ async function uploadWooSyncImageReference(
       projectId,
       settingId: resultKey,
       namespace: 'woo-sync-client',
+      fileName: `${result.key}-${result.color}-${result.pose}.jpg`,
       dataUrl,
     }),
   });
@@ -902,8 +969,11 @@ export default function Home() {
   const [isCompanionPickerOpen, setIsCompanionPickerOpen] = useState(false);
   const [companionPickerTarget, setCompanionPickerTarget] = useState<1 | 2>(1);
   const [selectedAdditionalScenarios, setSelectedAdditionalScenarios] = useState<string[]>([]);
-  const [selectedExtraScenarioLocation, setSelectedExtraScenarioLocation] = useState<string>(
-    defaultExtraScenarioLocation
+  const [selectedUrbanExtraScenarioLocation, setSelectedUrbanExtraScenarioLocation] = useState<string>(
+    defaultUrbanExtraScenarioLocation
+  );
+  const [selectedExtraUrbanScenarioLocation, setSelectedExtraUrbanScenarioLocation] = useState<string>(
+    defaultExtraUrbanScenarioLocation
   );
   const [activeTab, setActiveTab] = useState<ActiveTab>('products');
   const [generatedResults, setGeneratedResults] = useState<GeneratedResult[]>([]);
@@ -911,6 +981,7 @@ export default function Home() {
   const [generatedDescriptionHtml, setGeneratedDescriptionHtml] = useState('');
   const [generatedShortDescriptionHtml, setGeneratedShortDescriptionHtml] = useState('');
   const [acfValues, setAcfValues] = useState<AcfFieldValues>({});
+  const hydratedProgressStateProjectIdRef = useRef<string | null>(null);
   const [genError, setGenError] = useState<string | null>(null);
   const [descriptionError, setDescriptionError] = useState<string | null>(null);
   const [isPreviewApproved, setIsPreviewApproved] = useState(false);
@@ -1017,6 +1088,15 @@ export default function Home() {
     selectedScenarioSetting ? shootingReferenceImages[selectedScenarioSetting.id] : undefined;
   const selectedAdditionalScenarioSettings = realLifeSettings.filter(
     (setting) => selectedAdditionalScenarios.includes(setting.id) || selectedAdditionalScenarios.includes(setting.label)
+  );
+  const indoorRealLifeSettings = realLifeSettings.filter(
+    (setting) => getExtraScenarioContextKind(setting.label) === 'indoor'
+  );
+  const urbanRealLifeSettings = realLifeSettings.filter(
+    (setting) => getExtraScenarioContextKind(setting.label) === 'urban'
+  );
+  const extraUrbanRealLifeSettings = realLifeSettings.filter(
+    (setting) => getExtraScenarioContextKind(setting.label) === 'extra-urban'
   );
   const isUnisexProduct = Boolean(
     selectedProduct?.categories.some((category) =>
@@ -1261,7 +1341,8 @@ export default function Home() {
       secondaryCompanionFit: '',
       secondaryCompanionLength: '',
       selectedAdditionalScenarios: [],
-      selectedExtraScenarioLocation: defaultExtraScenarioLocation,
+      selectedUrbanExtraScenarioLocation: defaultUrbanExtraScenarioLocation,
+      selectedExtraUrbanScenarioLocation: defaultExtraUrbanScenarioLocation,
       generatedDescriptionHtml: '',
       generatedShortDescriptionHtml: '',
       acfValues: buildInitialAcfValues(product),
@@ -1386,8 +1467,17 @@ export default function Home() {
     setIsCompanionPickerOpen(false);
     setCompanionPickerTarget(1);
     setSelectedAdditionalScenarios(nextState.selectedAdditionalScenarios || []);
-    setSelectedExtraScenarioLocation(
-      coerceExtraScenarioLocationLabel(nextState.selectedExtraScenarioLocation)
+    setSelectedUrbanExtraScenarioLocation(
+      coerceUrbanExtraScenarioLocationLabel(
+        nextState.selectedUrbanExtraScenarioLocation,
+        nextState.selectedExtraScenarioLocation
+      )
+    );
+    setSelectedExtraUrbanScenarioLocation(
+      coerceExtraUrbanScenarioLocationLabel(
+        nextState.selectedExtraUrbanScenarioLocation,
+        nextState.selectedExtraScenarioLocation
+      )
     );
     setGeneratedDescriptionHtml(nextState.generatedDescriptionHtml || '');
     setGeneratedShortDescriptionHtml(nextState.generatedShortDescriptionHtml || '');
@@ -1730,20 +1820,33 @@ export default function Home() {
   }, [realLifeSettings]);
 
   useEffect(() => {
-    setStartedProductIds(persistedAppState.startedProductIdsByProject[projectId] || []);
-    setSyncedProductIds(persistedAppState.syncedProductIdsByProject[projectId] || []);
+    if (!hasLoadedAppState) return;
+    if (hydratedProgressStateProjectIdRef.current === projectId) return;
+
+    const persistedStartedProductIds =
+      persistedAppState.startedProductIdsByProject[projectId] || [];
+    const persistedSyncedProductIds =
+      persistedAppState.syncedProductIdsByProject[projectId] || [];
+    const persistedManualProductStatuses =
+      persistedAppState.manualProductStatusesByProject[projectId] || {};
+
+    hydratedProgressStateProjectIdRef.current = projectId;
+    setStartedProductIds(persistedStartedProductIds);
+    setSyncedProductIds(persistedSyncedProductIds);
     setManualProductStatuses(
       Object.fromEntries(
-        Object.entries(persistedAppState.manualProductStatusesByProject[projectId] || {}).map(
-          ([productId, status]) => [Number(productId), status as ManualProductStatus]
-        )
+        Object.entries(persistedManualProductStatuses).map(([productId, status]) => [
+          Number(productId),
+          status as ManualProductStatus,
+        ])
       ) as Record<number, ManualProductStatus>
     );
   }, [
+    hasLoadedAppState,
+    projectId,
     persistedAppState.manualProductStatusesByProject,
     persistedAppState.startedProductIdsByProject,
     persistedAppState.syncedProductIdsByProject,
-    projectId,
   ]);
 
   useEffect(() => {
@@ -2034,7 +2137,8 @@ export default function Home() {
       secondaryCompanionFit,
       secondaryCompanionLength,
       selectedAdditionalScenarios,
-      selectedExtraScenarioLocation,
+      selectedUrbanExtraScenarioLocation,
+      selectedExtraUrbanScenarioLocation,
       generatedDescriptionHtml,
       generatedShortDescriptionHtml,
       acfValues,
@@ -2065,7 +2169,8 @@ export default function Home() {
     secondaryCompanionFit,
     secondaryCompanionLength,
     selectedAdditionalScenarios,
-    selectedExtraScenarioLocation,
+    selectedUrbanExtraScenarioLocation,
+    selectedExtraUrbanScenarioLocation,
     generatedDescriptionHtml,
     generatedShortDescriptionHtml,
     acfValues,
@@ -2546,6 +2651,19 @@ export default function Home() {
     }));
   };
 
+  const setAcfFieldValueByName = (fieldName: string, value: string) => {
+    if (!selectedProduct) {
+      return;
+    }
+
+    const field = selectedProduct.acfFields.find((entry) => entry.name === fieldName);
+    if (!field) {
+      return;
+    }
+
+    setAcfFieldValue(field, value);
+  };
+
   const toggleAcfCheckboxValue = (field: AcfField, optionValue: string) => {
     const currentRawValue = normalizeAcfValueForField(field, acfValues[field.name]);
     const currentValue: string[] = [];
@@ -2755,6 +2873,8 @@ export default function Home() {
           selectedAdditionalScenarioLabels: selectedAdditionalScenarioSettings.map(
             (scenario) => scenario.label
           ),
+          selectedUrbanExtraScenarioLocation,
+          selectedExtraUrbanScenarioLocation,
           generatedImageUrls: getDescriptionReferenceUrls(effectiveResults),
         }),
       });
@@ -2762,6 +2882,7 @@ export default function Home() {
       const data = (await response.json()) as {
         descriptionHtml?: string;
         shortDescriptionHtml?: string;
+        generatedAcfContent?: GeneratedAcfContent;
         error?: string;
       };
 
@@ -2771,6 +2892,32 @@ export default function Home() {
 
       setGeneratedDescriptionHtml(data.descriptionHtml);
       setGeneratedShortDescriptionHtml(data.shortDescriptionHtml || '');
+      if (data.generatedAcfContent) {
+        if (data.generatedAcfContent.designHtml) {
+          setAcfFieldValueByName('fw_design', data.generatedAcfContent.designHtml);
+        }
+
+        if (data.generatedAcfContent.designerNoteHtml) {
+          setAcfFieldValueByName(
+            'fw_note_della_designer',
+            data.generatedAcfContent.designerNoteHtml
+          );
+        }
+
+        if (data.generatedAcfContent.designHours) {
+          setAcfFieldValueByName(
+            'tempistica_di_progettazione',
+            data.generatedAcfContent.designHours
+          );
+        }
+
+        if (data.generatedAcfContent.manufacturingHours) {
+          setAcfFieldValueByName(
+            'tempistica_di_fabbricazione',
+            data.generatedAcfContent.manufacturingHours
+          );
+        }
+      }
     } catch (error: unknown) {
       setDescriptionError(
         error instanceof Error ? error.message : 'Errore generazione descrizione'
@@ -2828,6 +2975,7 @@ export default function Home() {
           url: await uploadWooSyncImageReference(
             projectId,
             result.key,
+            result,
             await convertImageToJpegForWooSync(result.url)
           ),
         }))
@@ -2852,8 +3000,10 @@ export default function Home() {
           selectedAdditionalScenarioLabels: selectedAdditionalScenarioSettings.map(
             (scenario) => scenario.label
           ),
-          selectedExtraScenarioLocation:
-            selectedAdditionalScenarioSettings.length > 0 ? selectedExtraScenarioLocation : '',
+          selectedUrbanExtraScenarioLocation:
+            selectedAdditionalScenarioSettings.length > 0 ? selectedUrbanExtraScenarioLocation : '',
+          selectedExtraUrbanScenarioLocation:
+            selectedAdditionalScenarioSettings.length > 0 ? selectedExtraUrbanScenarioLocation : '',
           companionProductIds: [companionProductId, secondaryCompanionProductId].filter(
             (value): value is number => Boolean(value)
           ),
@@ -3168,7 +3318,11 @@ export default function Home() {
           'If there is any conflict between the reference model appearance and the written configuration, always obey the written configuration and ignore the reference model appearance.',
           `Scenario label: ${scenarioLabel}.`,
           args.kind === 'extra'
-            ? buildExtraScenarioLocationPrompt(scenarioLabel, selectedExtraScenarioLocation)
+            ? buildExtraScenarioLocationPrompt(
+                scenarioLabel,
+                selectedUrbanExtraScenarioLocation,
+                selectedExtraUrbanScenarioLocation
+              )
             : '',
           expandShootingPrompt(scenarioLabel),
           scenarioReferenceUrl
@@ -4632,6 +4786,9 @@ export default function Home() {
                           <p className="mb-3 text-xs text-slate-500">
                             La location iconica si applica solo alle ambientazioni compatibili. Le scene non compatibili useranno automaticamente un contesto coerente, senza mescolare città e paesaggi extra urbani.
                           </p>
+                          <p className="mb-3 text-xs text-slate-500">
+                            Seleziona una location urbana e una extra urbana. L&apos;app abbina automaticamente quella giusta alle ambientazioni compatibili senza fare mix errati.
+                          </p>
                           <div className="space-y-3">
                             <div>
                               <div className="mb-2 text-[10px] font-black uppercase tracking-wide text-[#6C7D92]">
@@ -4642,10 +4799,10 @@ export default function Home() {
                                   <button
                                     key={location.label}
                                     type="button"
-                                    onClick={() => setSelectedExtraScenarioLocation(location.label)}
+                                    onClick={() => setSelectedUrbanExtraScenarioLocation(location.label)}
                                     disabled={isBusy}
                                     className={`rounded-full px-3 py-2 text-xs font-black transition-all ${
-                                      selectedExtraScenarioLocation === location.label
+                                      selectedUrbanExtraScenarioLocation === location.label
                                         ? 'bg-[#103D66] text-white'
                                         : 'border border-[#D7D9DD] bg-[#F8FAFB] text-[#103D66]'
                                     } ${isBusy ? 'opacity-60' : ''}`}
@@ -4664,10 +4821,10 @@ export default function Home() {
                                   <button
                                     key={location.label}
                                     type="button"
-                                    onClick={() => setSelectedExtraScenarioLocation(location.label)}
+                                    onClick={() => setSelectedExtraUrbanScenarioLocation(location.label)}
                                     disabled={isBusy}
                                     className={`rounded-full px-3 py-2 text-xs font-black transition-all ${
-                                      selectedExtraScenarioLocation === location.label
+                                      selectedExtraUrbanScenarioLocation === location.label
                                         ? 'bg-[#6DA34D] text-white'
                                         : 'border border-[#D7D9DD] bg-white text-[#284E1D]'
                                     } ${isBusy ? 'opacity-60' : ''}`}
@@ -4694,7 +4851,11 @@ export default function Home() {
                                     <div key={scenario.id} className="flex items-start justify-between gap-3 rounded-xl border border-[#E5E7EB] bg-white px-3 py-2 text-xs">
                                       <span className="font-bold text-[#103D66]">{scenario.label}</span>
                                       <span className="text-right text-slate-500">
-                                        {describeExtraScenarioLocationUsage(scenario.label, selectedExtraScenarioLocation)}
+                                        {describeExtraScenarioLocationUsage(
+                                          scenario.label,
+                                          selectedUrbanExtraScenarioLocation,
+                                          selectedExtraUrbanScenarioLocation
+                                        )}
                                       </span>
                                     </div>
                                   );
@@ -4707,22 +4868,73 @@ export default function Home() {
                           <div className="mb-2 text-[10px] font-black uppercase tracking-wide text-[#4C6583]">
                             Seleziona le ambientazioni extra
                           </div>
-                          <div className="flex flex-wrap gap-2">
-                          {realLifeSettings.map((scenario) => (
-                            <button
-                              key={scenario.id}
-                              type="button"
-                              onClick={() => toggleAdditionalScenario(scenario.id)}
-                              disabled={isBusy}
-                              className={`rounded-full px-3 py-2 text-xs font-black transition-all ${
-                                selectedAdditionalScenarios.includes(scenario.id)
-                                  ? 'bg-[#103D66] text-white'
-                                  : 'border border-[#D7D9DD] bg-white text-[#103D66]'
-                              } ${isBusy ? 'opacity-60' : ''}`}
-                            >
-                              {scenario.label}
-                            </button>
-                          ))}
+                          <div className="space-y-3">
+                            <div>
+                              <div className="mb-2 text-[10px] font-black uppercase tracking-wide text-[#6C7D92]">
+                                Indoor
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {indoorRealLifeSettings.map((scenario) => (
+                                  <button
+                                    key={scenario.id}
+                                    type="button"
+                                    onClick={() => toggleAdditionalScenario(scenario.id)}
+                                    disabled={isBusy}
+                                    className={`rounded-full px-3 py-2 text-xs font-black transition-all ${
+                                      selectedAdditionalScenarios.includes(scenario.id)
+                                        ? 'bg-[#103D66] text-white'
+                                        : 'border border-[#D7D9DD] bg-white text-[#103D66]'
+                                    } ${isBusy ? 'opacity-60' : ''}`}
+                                  >
+                                    {scenario.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="mb-2 text-[10px] font-black uppercase tracking-wide text-[#6C7D92]">
+                                Urbane
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {urbanRealLifeSettings.map((scenario) => (
+                                  <button
+                                    key={scenario.id}
+                                    type="button"
+                                    onClick={() => toggleAdditionalScenario(scenario.id)}
+                                    disabled={isBusy}
+                                    className={`rounded-full px-3 py-2 text-xs font-black transition-all ${
+                                      selectedAdditionalScenarios.includes(scenario.id)
+                                        ? 'bg-[#103D66] text-white'
+                                        : 'border border-[#D7D9DD] bg-white text-[#103D66]'
+                                    } ${isBusy ? 'opacity-60' : ''}`}
+                                  >
+                                    {scenario.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="mb-2 text-[10px] font-black uppercase tracking-wide text-[#6C7D92]">
+                                Extra urbane
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {extraUrbanRealLifeSettings.map((scenario) => (
+                                  <button
+                                    key={scenario.id}
+                                    type="button"
+                                    onClick={() => toggleAdditionalScenario(scenario.id)}
+                                    disabled={isBusy}
+                                    className={`rounded-full px-3 py-2 text-xs font-black transition-all ${
+                                      selectedAdditionalScenarios.includes(scenario.id)
+                                        ? 'bg-[#103D66] text-white'
+                                        : 'border border-[#D7D9DD] bg-white text-[#103D66]'
+                                    } ${isBusy ? 'opacity-60' : ''}`}
+                                  >
+                                    {scenario.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
