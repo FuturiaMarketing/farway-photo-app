@@ -4,6 +4,7 @@ type JsonValue = Record<string, unknown> | unknown[] | string | number | boolean
 
 let pool: Pool | null = null;
 let schemaReady = false;
+let storageCompactionPromise: Promise<void> | null = null;
 
 export type StoredBinaryAsset = {
   id: string;
@@ -193,4 +194,105 @@ export async function readBinaryAssetById(assetId: string): Promise<StoredBinary
     bytes: row.bytes,
     metadata: row.metadata || {},
   };
+}
+
+export async function clearBinaryAssetsByNamespace(
+  namespace: string,
+  options?: { compact?: boolean }
+) {
+  if (!hasDatabaseConnection()) {
+    return;
+  }
+
+  await ensureDatabaseSchema();
+
+  const activePool = getPool();
+  await activePool.query('DELETE FROM app_binary_assets WHERE namespace = $1', [namespace]);
+
+  if (options?.compact) {
+    try {
+      await activePool.query('VACUUM FULL app_binary_assets');
+    } catch (error) {
+      console.error('Errore compattazione app_binary_assets:', error);
+    }
+  }
+}
+
+async function runInitialDatabaseCompaction() {
+  if (!hasDatabaseConnection()) {
+    return;
+  }
+
+  await ensureDatabaseSchema();
+
+  const activePool = getPool();
+
+  try {
+    const existingFlag = await readJsonValue<{ done?: boolean }>(
+      'migrations',
+      'cloud_storage_compaction_v1'
+    );
+
+    if (existingFlag?.done) {
+      return;
+    }
+  } catch {
+    // Continue with compaction if the flag cannot be read.
+  }
+
+  try {
+    await activePool.query(
+      `
+        UPDATE app_key_value
+        SET value = jsonb_set(value, '{generatedResults}', '[]'::jsonb, true),
+            updated_at = NOW()
+        WHERE namespace = 'product_sessions'
+          AND jsonb_typeof(value->'generatedResults') = 'array'
+          AND jsonb_array_length(value->'generatedResults') > 0
+      `
+    );
+  } catch (error) {
+    console.error('Errore pulizia generatedResults remoti:', error);
+  }
+
+  try {
+    await activePool.query("DELETE FROM app_binary_assets WHERE namespace = 'woo-sync'");
+  } catch (error) {
+    console.error('Errore pulizia asset woo-sync legacy:', error);
+  }
+
+  try {
+    await activePool.query('VACUUM FULL app_key_value');
+  } catch (error) {
+    console.error('Errore compattazione app_key_value:', error);
+  }
+
+  try {
+    await activePool.query('VACUUM FULL app_binary_assets');
+  } catch (error) {
+    console.error('Errore compattazione iniziale app_binary_assets:', error);
+  }
+
+  try {
+    await writeJsonValue('migrations', 'cloud_storage_compaction_v1', {
+      done: true,
+      compactedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Errore scrittura flag compattazione DB:', error);
+  }
+}
+
+export async function ensureInitialDatabaseCompaction() {
+  if (!hasDatabaseConnection()) {
+    return;
+  }
+
+  if (!storageCompactionPromise) {
+    storageCompactionPromise = runInitialDatabaseCompaction().catch((error) => {
+      console.error('Errore compattazione iniziale del DB:', error);
+    });
+  }
+
+  await storageCompactionPromise;
 }
