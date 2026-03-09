@@ -2471,12 +2471,22 @@ export default function Home() {
             ? 'This reference matches the requested target color exactly. Use its exact visible hue, undertone, saturation, and brightness as the color source of truth.'
             : 'If this reference is a different colorway, use it only for garment construction and never for the final garment color.';
 
-        return `A provided garment reference shows the ${img.color} colorway from the ${img.view} view. ${viewInstruction} ${modeInstruction} ${colorInstruction}`;
+        return `A provided garment reference is tagged with the label "${img.color}" for colorway routing and shows the ${img.view} view. Never infer the real shade from the text label itself. ${viewInstruction} ${modeInstruction} ${colorInstruction}`;
       })
       .join(' ');
 
-  const expandShootingPrompt = (settingLabel: string) => {
+  const expandShootingPrompt = (
+    settingLabel: string,
+    urbanLocationLabel: string,
+    extraUrbanLocationLabel: string
+  ) => {
     const normalized = settingLabel.toLowerCase();
+    const scenarioKind = getExtraScenarioContextKind(settingLabel);
+    const effectiveLocationLabel = getEffectiveExtraScenarioLocationLabel(
+      settingLabel,
+      urbanLocationLabel,
+      extraUrbanLocationLabel
+    );
     const qualities = [
       'professional commercial fashion photography',
       'clean premium e-commerce composition',
@@ -2501,9 +2511,9 @@ export default function Home() {
 
     if (normalized.includes('passeggiata con mamma e papa')) {
       qualities.push(
-        'set this lifestyle scene in an iconic outdoor Milan location',
-        'recognisable elegant Milan atmosphere such as Brera streets, Parco Sempione, or the area near the Duomo',
-        'family walk feeling in refined, upscale Milan surroundings'
+        'family walk feeling in refined upscale surroundings',
+        'natural outdoor movement for a stylish family stroll',
+        'elegant everyday city atmosphere'
       );
     }
 
@@ -2512,10 +2522,24 @@ export default function Home() {
       normalized.includes('gelato con gli amici')
     ) {
       qualities.push(
-        'set this lifestyle scene in an iconic Milan summer location',
-        'recognisable Milan context such as Navigli, Brera, or elegant central Milan streets',
-        'warm early evening light with a refined urban Milan atmosphere'
+        'warm early evening summer light',
+        'refined outdoor social atmosphere',
+        'natural relaxed lifestyle energy'
       );
+    }
+
+    if (effectiveLocationLabel) {
+      qualities.push(
+        `the scene must clearly read as ${effectiveLocationLabel}`,
+        `use spatial cues, architecture, mood, and atmosphere coherent with ${effectiveLocationLabel}`,
+        effectiveLocationLabel.toLowerCase().includes('milano')
+          ? 'do not genericize the scene into another city'
+          : `do not default to Milan; the selected location is ${effectiveLocationLabel}`
+      );
+    } else if (scenarioKind === 'urban') {
+      qualities.push('coherent refined Italian urban setting');
+    } else if (scenarioKind === 'extra-urban') {
+      qualities.push('coherent refined Italian extra-urban setting');
     }
 
     return `Shooting direction from user setting "${settingLabel}": ${qualities.join(', ')}. Keep the final image visually consistent with this setting.`;
@@ -3283,18 +3307,20 @@ export default function Home() {
       .trim()
       .slice(0, 1200);
     const imageUrls = [
-      ...(args.anchorImageUrl ? [args.anchorImageUrl] : []),
+      ...strictColorSourceImages.map((img) => img.url),
       ...relevantSourceImages.map((img) => img.url),
       ...environmentReferenceImageUrls,
       ...companionReferences.map((entry) => entry.imageUrl).filter(Boolean),
+      ...(args.anchorImageUrl ? [args.anchorImageUrl] : []),
     ];
     const finalGenerationImageUrls = Array.from(
       new Set(
         [
-          ...(args.anchorImageUrl && args.kind !== 'alternate' ? [args.anchorImageUrl] : []),
           ...strictColorSourceImages.slice(0, 2).map((image) => image.url),
           ...relevantSourceImages.slice(0, 3).map((image) => image.url),
+          ...environmentReferenceImageUrls,
           ...companionReferences.map((entry) => entry.imageUrl).filter(Boolean),
+          ...(args.anchorImageUrl && args.kind !== 'alternate' ? [args.anchorImageUrl] : []),
         ].filter(Boolean)
       )
     );
@@ -3319,6 +3345,9 @@ export default function Home() {
           'The garment must remain absolutely faithful to the references. Do not invent, add, redesign, embellish, or stylize any garment detail.',
           'Garment construction, silhouette, trims, seams, decorative elements, and every clothing detail must come only from the original product reference images, never from the anchor image and never from text labels.',
           'If a decorative element is not explicitly visible in the original product references, it is forbidden in the output.',
+          'Scenario words, city names, activity names, product-title wording, and styling language must never rewrite the garment.',
+          'Never infer bows, trim colors, print subjects, pattern content, decorative motifs, or garment color from the scenario label, city/location name, product title, or ambient context.',
+          'If the product title contains semantic cues such as animal names, flowers, places, moods, seasons, or color words, ignore them unless those exact elements are clearly visible in the original product references.',
           'Never improve, complete, embellish, or "make more premium" the garment. Simpler is always safer than inventing.',
           'Do not add bows, ruffles, pleats, buttons, belts, pockets, trims, embroidery, stitching, prints, logos, seams, collars, sleeves, ties, textures, layers, or accessories unless they are clearly visible in the provided references.',
           'If a garment detail is not clearly visible in the references, omit it rather than guessing.',
@@ -3346,6 +3375,9 @@ export default function Home() {
           args.kind === 'extra'
             ? 'Never mix urban city landmarks with lake, park, countryside, seaside, or mountain scenery. Never mix extra-urban landscape cues into city scenes.'
             : '',
+          args.kind === 'extra'
+            ? 'In extra ambientazioni, the environment may change but the garment must stay exactly the same as the locked references and approved hero: same silhouette, same pattern, same trims, same bow color, same decorative details, and same colorway.'
+            : '',
           normalizedRequestPose.includes('action') || args.kind === 'extra'
             ? 'The model should look moderately happy, with a soft natural smile and a pleasant positive expression.'
             : 'Even in catalog poses, the model should look gently happy and approachable, with a visible soft natural smile rather than a neutral expression.',
@@ -3369,7 +3401,11 @@ export default function Home() {
                 selectedExtraUrbanScenarioLocation
               )
             : '',
-          expandShootingPrompt(scenarioLabel),
+          expandShootingPrompt(
+            scenarioLabel,
+            selectedUrbanExtraScenarioLocation,
+            selectedExtraUrbanScenarioLocation
+          ),
           scenarioReferenceUrl
             ? 'If an environment reference exists for the selected ambientazione, use it only as supporting guidance for background, light direction, set design, and activity. Never let it change the garment design, garment color, trims, or proportions.'
             : '',
@@ -3390,6 +3426,7 @@ export default function Home() {
           'If the text label suggests a shade but the matching target-color reference image shows a different exact shade, always follow the exact visible shade from the matching reference image.',
           'When there is any conflict between text and the visible color in the matching reference images, the visible color in the matching reference images must win completely.',
           'The requested target colorway applies only to the main product garment.',
+          'The ambientazione, city, props, and environment lighting must never recolor the garment, change the bow color, or introduce a print or decorative element that was not present in the locked references.',
           'Do not recolor, tint, harmonize, or shift any secondary garment, companion garment, or accessory to the main product colorway.',
           'Every secondary garment must preserve its own original color exactly as shown in its own reference image.',
           'The final output must be one single portrait image in a strict 4:5 aspect ratio.',

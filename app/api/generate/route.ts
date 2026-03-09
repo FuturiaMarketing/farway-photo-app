@@ -40,8 +40,21 @@ function parseDataUrl(imageUrl: string) {
   };
 }
 
-function inferMimeType(url: string) {
-  const pathname = new URL(url).pathname.toLowerCase();
+function resolveExternalImageUrl(imageUrl: string, requestOrigin?: string) {
+  if (/^https?:\/\//i.test(imageUrl)) {
+    return imageUrl;
+  }
+
+  const fallbackOrigin =
+    requestOrigin ||
+    process.env.APP_PUBLIC_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+
+  return new URL(imageUrl, fallbackOrigin).toString();
+}
+
+function inferMimeType(url: string, requestOrigin?: string) {
+  const pathname = new URL(resolveExternalImageUrl(url, requestOrigin)).pathname.toLowerCase();
 
   if (pathname.endsWith('.jpg') || pathname.endsWith('.jpeg')) return 'image/jpeg';
   if (pathname.endsWith('.webp')) return 'image/webp';
@@ -50,7 +63,7 @@ function inferMimeType(url: string) {
   return 'image/png';
 }
 
-async function loadInlineImagePart(imageUrl: string) {
+async function loadInlineImagePart(imageUrl: string, requestOrigin?: string) {
   const inlineImage = parseDataUrl(imageUrl);
 
   if (inlineImage) {
@@ -62,14 +75,14 @@ async function loadInlineImagePart(imageUrl: string) {
     } satisfies GeminiRequestPart;
   }
 
-  const imgRes = await fetch(imageUrl);
+  const imgRes = await fetch(resolveExternalImageUrl(imageUrl, requestOrigin));
 
   if (!imgRes.ok) {
     throw new Error(`Impossibile scaricare l'immagine sorgente (${imgRes.status}).`);
   }
 
   const buffer = await imgRes.arrayBuffer();
-  const mimeType = imgRes.headers.get('content-type') || inferMimeType(imageUrl);
+  const mimeType = imgRes.headers.get('content-type') || inferMimeType(imageUrl, requestOrigin);
 
   return {
     inline_data: {
@@ -77,6 +90,14 @@ async function loadInlineImagePart(imageUrl: string) {
       data: Buffer.from(buffer).toString('base64'),
     },
   } satisfies GeminiRequestPart;
+}
+
+function stripHtmlToPlainText(value: string) {
+  return String(value || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 async function callGeminiGenerateContent(
@@ -175,9 +196,12 @@ export async function POST(req: Request) {
       generationKind,
       garmentReferenceImageUrls,
       colorReferenceImageUrls,
+      environmentReferenceImageUrls,
       targetColorLabel,
       prompt: userPrompt,
       productName,
+      productDescription,
+      requestOrigin,
     } = await req.json();
     const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || '';
 
@@ -197,17 +221,22 @@ export async function POST(req: Request) {
       Array.isArray(colorReferenceImageUrls) && colorReferenceImageUrls.length > 0
         ? colorReferenceImageUrls
         : safeGarmentReferenceImageUrls;
+    const safeEnvironmentReferenceImageUrls =
+      Array.isArray(environmentReferenceImageUrls) && environmentReferenceImageUrls.length > 0
+        ? environmentReferenceImageUrls
+        : [];
     const uniqueImageUrls = Array.from(
       new Set<string>([
         ...imageUrls,
         ...safeGarmentReferenceImageUrls,
         ...safeColorReferenceImageUrls,
+        ...safeEnvironmentReferenceImageUrls,
       ])
     );
     const imagePartEntries = await Promise.all(
       uniqueImageUrls.map(async (imageUrl: string) => [
         imageUrl,
-        await loadInlineImagePart(imageUrl),
+        await loadInlineImagePart(imageUrl, requestOrigin),
       ] as const)
     );
     const imagePartMap = new Map<string, GeminiRequestPart>(imagePartEntries);
@@ -226,6 +255,9 @@ export async function POST(req: Request) {
     const colorReferenceParts = safeColorReferenceImageUrls
       .map((imageUrl: string) => imagePartMap.get(imageUrl))
       .filter((part): part is GeminiRequestPart => Boolean(part));
+    const environmentReferenceParts = safeEnvironmentReferenceImageUrls
+      .map((imageUrl: string) => imagePartMap.get(imageUrl))
+      .filter((part): part is GeminiRequestPart => Boolean(part));
 
     const safeUserPrompt = String(userPrompt || '')
       .replace(/mesi/gi, 'months size')
@@ -235,6 +267,7 @@ export async function POST(req: Request) {
       .replace(/bambino/gi, 'small child model')
       .replace(/bambina/gi, 'small child model');
     const safeProductName = String(productName || '').trim();
+    const safeProductDescription = stripHtmlToPlainText(String(productDescription || '')).slice(0, 1200);
     const safeTargetColorLabel = String(targetColorLabel || '').trim();
     const safeGenerationKind = String(generationKind || '').trim().toLowerCase();
     const finalImageModel =
@@ -244,6 +277,7 @@ export async function POST(req: Request) {
 
     let garmentFidelityLockProfile = '';
     let extractedColorLockProfile = '';
+    let environmentLockProfile = '';
 
     try {
       const garmentAnalysisPrompt = [
@@ -251,11 +285,15 @@ export async function POST(req: Request) {
         safeProductName
           ? `The target garment is the product titled "${safeProductName}". Ignore any other garment, prop, or accessory.`
           : '',
+        'Ignore any semantic cues in the product title such as color names, cities, animals, flowers, moods, characters, or seasons unless they are clearly visible in the garment itself.',
         'Ignore any person, face, body, mannequin, background, and styling context.',
         'Return only a concise garment fidelity lock profile in English with these exact sections: Core silhouette; Visible construction details; Visible decorative details; Explicitly absent details.',
         'Only mention details that are clearly visible in the product references.',
         'If a decorative detail is not clearly visible, do not promote it to present.',
         'In "Explicitly absent details", list only clearly absent details among common invention risks such as bow, sash, waistband ribbon, decorative belt, contrast trim, ruffles, lace, embroidery, print, pockets, buttons, and extra decorative pieces.',
+        safeProductDescription
+          ? `Supporting product description context: ${safeProductDescription}. Use this text only to confirm garment intent when it matches the visible references. Never let the text add a detail that is not visible in the images.`
+          : '',
         'This profile will be used as a hard lock for image generation, so be strict and literal.',
       ]
         .filter(Boolean)
@@ -313,12 +351,40 @@ export async function POST(req: Request) {
       console.error('Errore estrazione profilo colore:', error);
     }
 
+    try {
+      if (environmentReferenceParts.length > 0) {
+        const environmentAnalysisPrompt = [
+          'Analyze only the environment and scene design from the provided ambientazione reference image(s).',
+          'Ignore every garment, accessory, child, adult, face, and body completely.',
+          'Return only a concise environment lock profile in English: background; lighting; mood; props; spatial cues; natural action suggestions.',
+          'This profile must describe only the scene and never any clothing detail.',
+        ].join(' ');
+
+        const { response: environmentAnalysisResponse, result: environmentAnalysisResult } =
+          await callGeminiGenerateContent(
+            apiKey,
+            'gemini-3-pro-image-preview',
+            [...environmentReferenceParts, { text: environmentAnalysisPrompt }],
+            ['TEXT']
+          );
+
+        if (environmentAnalysisResponse.ok) {
+          environmentLockProfile = getGeminiText(environmentAnalysisResult);
+        } else {
+          console.error('Errore Gemini environment analysis:', environmentAnalysisResult);
+        }
+      }
+    } catch (error) {
+      console.error('Errore estrazione profilo ambientazione:', error);
+    }
+
     const finalPrompt = [
       'Follow this process exactly.',
       'Step 1: identify and isolate only the target garment.',
       'Step 2: lock garment construction and garment details using only the dedicated original product references and the garment fidelity profile below.',
       'Step 3: lock the garment color using only the dedicated target-color reference images and the extracted color profile below.',
-      'Step 4: generate the new image while preserving both locks faithfully.',
+      'Step 4: if an ambientazione reference exists, use it only to lock scene/background guidance and never garment details.',
+      'Step 5: generate the new image while preserving every lock faithfully.',
       'Create a professional e-commerce fashion photo.',
       'The final output must be a single portrait image in a strict 4:5 aspect ratio.',
       'Use the provided product image(s) as the exact garment reference.',
@@ -337,6 +403,8 @@ export async function POST(req: Request) {
       'Never merge details from different garments seen in the references.',
       'Do not copy or preserve any human identity from the source images.',
       'Preserve the garment faithfully: color, fabric, cut, patterns, trims, and proportions must match the source images.',
+      'Scenario words, city names, product-title wording, activity names, and styling language must never rewrite the garment.',
+      'Never infer bows, trim colors, print subjects, pattern content, decorative motifs, or garment construction from the scene, the city, the product title, or any contextual wording.',
       garmentFidelityLockProfile
         ? `Mandatory garment fidelity lock profile from the original product references: ${garmentFidelityLockProfile}.`
         : 'No separate garment fidelity profile could be extracted, so use only the original product references as the hard source of truth for garment construction and details.',
@@ -344,6 +412,9 @@ export async function POST(req: Request) {
       'Any detail listed as absent, missing, or not present in the garment fidelity lock profile is forbidden in the output.',
       'Do not invent or hallucinate decorative details, especially bows, waist ribbons, belts, contrast trims, extra seams, embroidery, prints, or ornamental pieces.',
       'If there is any uncertainty, simplify and omit. Never add.',
+      safeProductDescription
+        ? `Supporting imported WooCommerce product description: ${safeProductDescription}. Use this text only as secondary context when it matches the visible references. It can confirm intent, but it must never override the garment fidelity lock, the visible references, or introduce hidden details.`
+        : '',
       safeTargetColorLabel
         ? `Requested color label for routing only: "${safeTargetColorLabel}".`
         : '',
@@ -356,6 +427,12 @@ export async function POST(req: Request) {
       'Do not infer color from the label text. Extract it from the garment pixels in the matching target-color references only.',
       'If the text suggests one shade but the matching color reference images show another exact shade, always obey the visible shade from the matching color reference images.',
       'Keep the garment base hue, undertone, saturation, brightness, and depth as close as possible to the locked reference color, even if the scene lighting changes.',
+      environmentLockProfile
+        ? `Supporting environment lock profile from the ambientazione reference images: ${environmentLockProfile}. Use it only for background, lighting, props, and natural action. It must never change garment construction, garment details, or garment color.`
+        : '',
+      'If the styling requirements mention a specific city or location, obey that exact location and do not replace it with Milan or any other city.',
+      'If the requested location is not Milan, defaulting to Milan is forbidden.',
+      'Environment, props, and city identity must never recolor the garment, change bow or trim colors, or introduce a pattern or decorative detail that is not present in the locked references.',
       'Be absolutely faithful to the garment in the references. Never invent, add, redesign, embellish, or stylize garment details.',
       'Do not add any garment feature that is not clearly visible in the references, including bows, ruffles, pleats, buttons, belts, pockets, trims, embroidery, stitching, prints, logos, extra seams, collars, sleeves, ties, or accessories.',
       'If a detail is unclear or missing in the references, omit it instead of guessing.',
@@ -368,6 +445,7 @@ export async function POST(req: Request) {
       'The output must be a single coherent camera shot with one subject and one continuous background.',
       'Respect any front, back, and side reference labels strictly.',
       'Use the labeled references only to understand the correct visible side of the garment for the requested pose.',
+      'For a back shot, the model must turn away from the camera and show the back of the garment as the dominant visible side. A front-facing back shot is invalid.',
       'If an anchor image is present among the provided images, use it only for identity, expression, framing, and continuity. It must never override the garment fidelity lock profile or the color lock profile.',
       'Generate a new realistic full-body fashion model based only on the written styling instructions.',
       'The model should appear moderately happy, with a visible soft natural smile and a pleasant positive expression, including in clean catalog poses.',
