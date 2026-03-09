@@ -50,7 +50,7 @@ type AcfField = {
 type AcfFieldValues = Record<string, string | string[]>;
 type SourceView = (typeof sourceViewOptions)[number];
 type SourceReferenceMode = 'garment-only' | 'worn';
-type Product = { id: number; name: string; images: string[]; image: string; colors: string[]; sizes: string[]; description?: string; sku?: string; frontendUrl?: string; backendUrl?: string; categories: ProductCategory[]; acfFields: AcfField[]; acfValues: AcfFieldValues };
+type Product = { id: number; name: string; images: string[]; image: string; colors: string[]; sizes: string[]; description?: string; sku?: string; frontendUrl?: string; backendUrl?: string; categories: ProductCategory[]; acfFields: AcfField[]; acfValues: AcfFieldValues; selectedAdditionalScenarios?: string[]; hasFarwaySyncedImages?: boolean };
 type Job = { id: string; modelAge: string; gender: string; ethnicity: string; scenario: string; fit: string; length: string; status: 'pending' };
 type SelectedSourceImage = { url: string; view: SourceView; color: string; mode: SourceReferenceMode };
 type GeneratedResult = { key: string; kind: 'hero' | 'front' | 'gallery' | 'extra' | 'alternate'; pose: string; color: string; url: string };
@@ -84,6 +84,7 @@ type ProductSession = {
   secondaryCompanionFit: string;
   secondaryCompanionLength: string;
   selectedAdditionalScenarios: string[];
+  additionalImageInstructions: string;
   selectedUrbanExtraScenarioLocation: string;
   selectedExtraUrbanScenarioLocation: string;
   selectedExtraScenarioLocation?: string;
@@ -91,6 +92,7 @@ type ProductSession = {
   generatedShortDescriptionHtml: string;
   acfValues: AcfFieldValues;
   excludedSyncResultKeys: string[];
+  selectedPrimarySyncResultKey: string;
   activeTab: ActiveTab;
   isPreviewApproved: boolean;
 };
@@ -969,6 +971,7 @@ export default function Home() {
   const [isCompanionPickerOpen, setIsCompanionPickerOpen] = useState(false);
   const [companionPickerTarget, setCompanionPickerTarget] = useState<1 | 2>(1);
   const [selectedAdditionalScenarios, setSelectedAdditionalScenarios] = useState<string[]>([]);
+  const [additionalImageInstructions, setAdditionalImageInstructions] = useState('');
   const [selectedUrbanExtraScenarioLocation, setSelectedUrbanExtraScenarioLocation] = useState<string>(
     defaultUrbanExtraScenarioLocation
   );
@@ -982,6 +985,7 @@ export default function Home() {
   const [generatedShortDescriptionHtml, setGeneratedShortDescriptionHtml] = useState('');
   const [acfValues, setAcfValues] = useState<AcfFieldValues>({});
   const hydratedProgressStateProjectIdRef = useRef<string | null>(null);
+  const [selectedPrimarySyncResultKey, setSelectedPrimarySyncResultKey] = useState('');
   const [genError, setGenError] = useState<string | null>(null);
   const [descriptionError, setDescriptionError] = useState<string | null>(null);
   const [isPreviewApproved, setIsPreviewApproved] = useState(false);
@@ -1015,6 +1019,8 @@ export default function Home() {
   const includedSyncResults = generatedResults.filter(
     (result) => !excludedSyncResultKeys.includes(result.key)
   );
+  const selectedPrimarySyncResult =
+    includedSyncResults.find((result) => result.key === selectedPrimarySyncResultKey) || null;
   const isBusy = stage !== 'idle';
   const availableCategories = Array.from(
     new Map(
@@ -1316,6 +1322,11 @@ export default function Home() {
 
   const loadProductState = useCallback(async (product: Product) => {
     const defaultColor = product.colors.length === 1 ? product.colors[0] || '' : '';
+    const defaultAdditionalScenarios = Array.isArray(product.selectedAdditionalScenarios)
+      ? product.selectedAdditionalScenarios.filter(
+          (value): value is string => typeof value === 'string' && value.length > 0
+        )
+      : [];
     const defaultState: ProductSession = {
       selectedSourceImages: product.image ? [{ url: product.image, view: 'front', color: defaultColor, mode: 'garment-only' }] : [],
       manualSourceImages: [],
@@ -1340,13 +1351,15 @@ export default function Home() {
       secondaryCompanionImageUrl: '',
       secondaryCompanionFit: '',
       secondaryCompanionLength: '',
-      selectedAdditionalScenarios: [],
+      selectedAdditionalScenarios: defaultAdditionalScenarios,
+      additionalImageInstructions: '',
       selectedUrbanExtraScenarioLocation: defaultUrbanExtraScenarioLocation,
       selectedExtraUrbanScenarioLocation: defaultExtraUrbanScenarioLocation,
       generatedDescriptionHtml: '',
       generatedShortDescriptionHtml: '',
       acfValues: buildInitialAcfValues(product),
       excludedSyncResultKeys: [],
+      selectedPrimarySyncResultKey: '',
       activeTab: 'setup',
       isPreviewApproved: false,
     };
@@ -1377,6 +1390,11 @@ export default function Home() {
                 mode: image.mode === 'worn' ? 'worn' : 'garment-only',
               }))
             : defaultState.selectedSourceImages,
+        selectedAdditionalScenarios:
+          Array.isArray(parsed.selectedAdditionalScenarios) &&
+          parsed.selectedAdditionalScenarios.length > 0
+            ? parsed.selectedAdditionalScenarios
+            : defaultState.selectedAdditionalScenarios,
       };
     }
 
@@ -1394,6 +1412,11 @@ export default function Home() {
                   mode: image.mode === 'worn' ? 'worn' : 'garment-only',
                 }))
               : defaultState.selectedSourceImages,
+          selectedAdditionalScenarios:
+            Array.isArray(parsed.selectedAdditionalScenarios) &&
+            parsed.selectedAdditionalScenarios.length > 0
+              ? parsed.selectedAdditionalScenarios
+              : defaultState.selectedAdditionalScenarios,
         };
       } catch {
         nextState = defaultState;
@@ -1467,6 +1490,7 @@ export default function Home() {
     setIsCompanionPickerOpen(false);
     setCompanionPickerTarget(1);
     setSelectedAdditionalScenarios(nextState.selectedAdditionalScenarios || []);
+    setAdditionalImageInstructions(nextState.additionalImageInstructions || '');
     setSelectedUrbanExtraScenarioLocation(
       coerceUrbanExtraScenarioLocationLabel(
         nextState.selectedUrbanExtraScenarioLocation,
@@ -1482,6 +1506,7 @@ export default function Home() {
     setGeneratedDescriptionHtml(nextState.generatedDescriptionHtml || '');
     setGeneratedShortDescriptionHtml(nextState.generatedShortDescriptionHtml || '');
     setExcludedSyncResultKeys(nextState.excludedSyncResultKeys || []);
+    setSelectedPrimarySyncResultKey(nextState.selectedPrimarySyncResultKey || '');
     setAcfValues(
       Object.fromEntries(
         product.acfFields.map((field) => [
@@ -1883,25 +1908,13 @@ export default function Home() {
   }, [persistedAppState.generatedProductIdsByProject, projectId, products.length]);
 
   useEffect(() => {
-    window.localStorage.setItem(
-      `futuria-started-products-${projectId}`,
-      JSON.stringify(startedProductIds)
-    );
-  }, [projectId, startedProductIds]);
+    if (!hasLoadedAppState || generatedProductIds.length === 0) return;
 
-  useEffect(() => {
-    window.localStorage.setItem(
-      `futuria-synced-products-${projectId}`,
-      JSON.stringify(syncedProductIds)
-    );
-  }, [projectId, syncedProductIds]);
-
-  useEffect(() => {
-    window.localStorage.setItem(
-      `futuria-manual-product-statuses-${projectId}`,
-      JSON.stringify(manualProductStatuses)
-    );
-  }, [manualProductStatuses, projectId]);
+    setStartedProductIds((prev) => {
+      const next = Array.from(new Set([...prev, ...generatedProductIds]));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [generatedProductIds, hasLoadedAppState]);
 
   useEffect(() => {
     if (products.length === 0) return;
@@ -1921,6 +1934,10 @@ export default function Home() {
 
     const manuallyCompletedIds = products
       .filter((product) => {
+        if (product.hasFarwaySyncedImages) {
+          return true;
+        }
+
         const normalizedName = normalizedTarget(product.name);
         return manuallyCompletedMatchers.some((matcher) => matcher(normalizedName));
       })
@@ -2137,12 +2154,14 @@ export default function Home() {
       secondaryCompanionFit,
       secondaryCompanionLength,
       selectedAdditionalScenarios,
+      additionalImageInstructions,
       selectedUrbanExtraScenarioLocation,
       selectedExtraUrbanScenarioLocation,
       generatedDescriptionHtml,
       generatedShortDescriptionHtml,
       acfValues,
       excludedSyncResultKeys,
+      selectedPrimarySyncResultKey,
       activeTab,
       isPreviewApproved,
     };
@@ -2169,12 +2188,14 @@ export default function Home() {
     secondaryCompanionFit,
     secondaryCompanionLength,
     selectedAdditionalScenarios,
+    additionalImageInstructions,
     selectedUrbanExtraScenarioLocation,
     selectedExtraUrbanScenarioLocation,
     generatedDescriptionHtml,
     generatedShortDescriptionHtml,
     acfValues,
     excludedSyncResultKeys,
+    selectedPrimarySyncResultKey,
     selectedProduct,
     selectedSourceImages,
   ]);
@@ -2251,6 +2272,13 @@ export default function Home() {
   useEffect(() => {
     if (!hasLoadedAppState) return;
 
+    const persistedStartedProductIds =
+      persistedAppState.startedProductIdsByProject[projectId] || [];
+    const persistedSyncedProductIds =
+      persistedAppState.syncedProductIdsByProject[projectId] || [];
+    const persistedManualProductStatuses =
+      persistedAppState.manualProductStatusesByProject[projectId] || {};
+
     window.localStorage.setItem('futuria-projects', JSON.stringify(persistedAppState.projects));
     window.localStorage.setItem('futuria-current-project-id', persistedAppState.currentProjectId);
     window.localStorage.setItem(
@@ -2259,15 +2287,15 @@ export default function Home() {
     );
     window.localStorage.setItem(
       `futuria-started-products-${projectId}`,
-      JSON.stringify(startedProductIds)
+      JSON.stringify(persistedStartedProductIds)
     );
     window.localStorage.setItem(
       `futuria-synced-products-${projectId}`,
-      JSON.stringify(syncedProductIds)
+      JSON.stringify(persistedSyncedProductIds)
     );
     window.localStorage.setItem(
       `futuria-manual-product-statuses-${projectId}`,
-      JSON.stringify(manualProductStatuses)
+      JSON.stringify(persistedManualProductStatuses)
     );
 
     if (persistedAppState.selectedProductByProject[projectId]) {
@@ -2278,14 +2306,7 @@ export default function Home() {
     }
 
     void saveRemoteAppState(persistedAppState);
-  }, [
-    hasLoadedAppState,
-    manualProductStatuses,
-    persistedAppState,
-    projectId,
-    startedProductIds,
-    syncedProductIds,
-  ]);
+  }, [hasLoadedAppState, persistedAppState, projectId]);
 
   useEffect(() => {
     const currentProject =
@@ -3004,6 +3025,7 @@ export default function Home() {
             selectedAdditionalScenarioSettings.length > 0 ? selectedUrbanExtraScenarioLocation : '',
           selectedExtraUrbanScenarioLocation:
             selectedAdditionalScenarioSettings.length > 0 ? selectedExtraUrbanScenarioLocation : '',
+          primarySyncResultKey: selectedPrimarySyncResult?.key || '',
           companionProductIds: [companionProductId, secondaryCompanionProductId].filter(
             (value): value is number => Boolean(value)
           ),
@@ -3052,11 +3074,12 @@ export default function Home() {
       setWooSyncProgress(data.progress || 0);
       setWooSyncPhase(data.phase || 'In coda');
 
-      if (data.status === 'completed') {
-        setSyncedProductIds((prev) =>
-          prev.includes(selectedProduct.id) ? prev : [...prev, selectedProduct.id]
-        );
-        const syncedCover =
+        if (data.status === 'completed') {
+          setSyncedProductIds((prev) =>
+            prev.includes(selectedProduct.id) ? prev : [...prev, selectedProduct.id]
+          );
+          const syncedCover =
+          selectedPrimarySyncResult ||
           galleryResults.find((result) => result.pose === 'In Action') ||
           previewResult ||
           syncResults[0] ||
@@ -3122,6 +3145,7 @@ export default function Home() {
             prev.includes(selectedProduct.id) ? prev : [...prev, selectedProduct.id]
           );
           const syncedCover =
+            selectedPrimarySyncResult ||
             galleryResults.find((result) => result.pose === 'In Action') ||
             previewResult ||
             syncResults[0] ||
@@ -3197,12 +3221,32 @@ export default function Home() {
   };
 
   const toggleSyncInclusion = (resultKey: string) => {
+    if (selectedPrimarySyncResultKey === resultKey) {
+      setSelectedPrimarySyncResultKey('');
+    }
+
     setExcludedSyncResultKeys((prev) =>
       prev.includes(resultKey)
         ? prev.filter((key) => key !== resultKey)
         : [...prev, resultKey]
     );
   };
+
+  const togglePrimarySyncSelection = (resultKey: string) => {
+    setSelectedPrimarySyncResultKey((prev) => (prev === resultKey ? '' : resultKey));
+    setExcludedSyncResultKeys((prev) => prev.filter((key) => key !== resultKey));
+  };
+
+  useEffect(() => {
+    if (!selectedPrimarySyncResultKey) return;
+
+    const stillExists = generatedResults.some((result) => result.key === selectedPrimarySyncResultKey);
+    const isNowExcluded = excludedSyncResultKeys.includes(selectedPrimarySyncResultKey);
+
+    if (!stillExists || isNowExcluded) {
+      setSelectedPrimarySyncResultKey('');
+    }
+  }, [excludedSyncResultKeys, generatedResults, selectedPrimarySyncResultKey]);
 
   const requestImage = async (args: {
     key: string; kind: 'hero' | 'front' | 'gallery' | 'extra' | 'alternate'; pose: string; posePrompt: string; targetColor: string; anchorImageUrl?: string; anchorInstruction?: string; scenarioOverrideLabel?: string; scenarioOverrideReferenceUrl?: string; genderOverride?: string; additionalCorrectionPrompt?: string;
@@ -3222,6 +3266,7 @@ export default function Home() {
         : args.scenarioOverrideLabel
           ? undefined
           : selectedScenarioReferenceUrl;
+    const safeAdditionalImageInstructions = additionalImageInstructions.trim().slice(0, 1200);
     const environmentReferenceImageUrls = scenarioReferenceUrl ? [scenarioReferenceUrl] : [];
     const companionReferences = selectedCompanionEntries.map((entry) => ({
       productName: entry.product.name,
@@ -3353,6 +3398,9 @@ export default function Home() {
           'Do not show two versions of the model, two crops, or two framings in the same image.',
           'Do not crop the image into left/right sections or combine a full-body view with a close-up in one frame.',
           'The result must be one coherent single-camera shot with one subject and one continuous background.',
+          safeAdditionalImageInstructions
+            ? `Additional user image instructions for this product batch: ${safeAdditionalImageInstructions}. Follow them when generating the image, but never violate garment fidelity, color fidelity, required pose, selected scenario, or the written identity configuration.`
+            : '',
           'If an anchor image is provided, use it only for model identity, expression, framing, and continuity. Never use the anchor image as a garment-design reference.',
           'The anchor image must not introduce new trims, bows, belts, waist details, prints, or construction changes.',
           'Respect front/back/side labels strictly and use only the provided pose-relevant references to understand the visible side of the garment.',
@@ -3749,6 +3797,18 @@ export default function Home() {
               onChange={() => toggleSyncInclusion(result.key)}
             />
             <span>{isExcludedFromSync ? 'Esclusa dalla sync WooCommerce' : 'Includi nella sync WooCommerce'}</span>
+          </label>
+          <label className="flex items-center gap-2 rounded-xl border border-[#D7D9DD] bg-white px-3 py-2 text-[11px] font-bold text-[#103D66]">
+            <input
+              type="checkbox"
+              checked={selectedPrimarySyncResultKey === result.key}
+              onChange={() => togglePrimarySyncSelection(result.key)}
+            />
+            <span>
+              {selectedPrimarySyncResultKey === result.key
+                ? 'Immagine principale WooCommerce'
+                : 'Usa come immagine principale WooCommerce'}
+            </span>
           </label>
           <button
             type="button"
@@ -4711,6 +4771,25 @@ export default function Home() {
 
               <div id="generate-hero-cta" className="rounded-2xl border border-[#D7D9DD] bg-white p-6 shadow-sm">
                 <div className="mb-4 font-bold">Genera la hero front del colore scelto</div>
+                <div className="mb-4">
+                  <label
+                    htmlFor="additional-image-instructions"
+                    className="mb-2 block text-[11px] font-black uppercase tracking-wide text-[#4C6583]"
+                  >
+                    Istruzioni aggiuntive per l&apos;AI
+                  </label>
+                  <textarea
+                    id="additional-image-instructions"
+                    value={additionalImageInstructions}
+                    onChange={(event) => setAdditionalImageInstructions(event.target.value)}
+                    placeholder="Esempio: lascia piu aria sopra la testa, evita pose troppo rigide, usa una luce piu morbida sul viso."
+                    rows={4}
+                    className="min-h-[112px] w-full rounded-2xl border border-[#D7D9DD] bg-[#F8FAFB] px-4 py-3 text-sm text-[#103D66] outline-none transition focus:border-[#103D66] focus:bg-white"
+                  />
+                  <p className="mt-2 text-xs text-slate-500">
+                    Queste istruzioni vengono considerate in tutte le immagini generate per il prodotto, a partire dalla hero front.
+                  </p>
+                </div>
                 <button onClick={startGeneration} disabled={isBusy || !isSetupComplete} className={`flex w-full items-center justify-center gap-3 rounded-2xl py-5 text-lg font-black text-white ${isBusy || !isSetupComplete ? 'bg-slate-400' : 'bg-[#103D66]'}`}>
                   {stage === 'hero' ? <><RefreshCw className="animate-spin" size={24} /> Generazione hero...</> : <><Wand2 size={24} /> Genera Hero Front</>}
                 </button>
