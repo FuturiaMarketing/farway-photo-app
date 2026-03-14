@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server';
 
+export const runtime = 'nodejs';
+export const maxDuration = 60;
+
+const sourceImageFetchTimeoutMs = 20_000;
+const geminiFetchTimeoutMs = 50_000;
+
 type GeminiPart = {
   text?: string;
   inlineData?: {
@@ -28,6 +34,31 @@ type GeminiRequestPart = {
     data: string;
   };
 };
+
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit,
+  timeoutMs: number,
+  timeoutMessage: string
+) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } catch (error: unknown) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error(timeoutMessage);
+    }
+
+    throw error instanceof Error ? error : new Error('Errore di rete imprevisto.');
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 function parseDataUrl(imageUrl: string) {
   const match = imageUrl.match(/^data:(.+?);base64,(.+)$/);
@@ -75,7 +106,12 @@ async function loadInlineImagePart(imageUrl: string, requestOrigin?: string) {
     } satisfies GeminiRequestPart;
   }
 
-  const imgRes = await fetch(resolveExternalImageUrl(imageUrl, requestOrigin));
+  const imgRes = await fetchWithTimeout(
+    resolveExternalImageUrl(imageUrl, requestOrigin),
+    {},
+    sourceImageFetchTimeoutMs,
+    "Timeout nel download dell'immagine sorgente."
+  );
 
   if (!imgRes.ok) {
     throw new Error(`Impossibile scaricare l'immagine sorgente (${imgRes.status}).`);
@@ -110,7 +146,7 @@ async function callGeminiGenerateContent(
     imageSize?: string;
   }
 ) {
-  const response = await fetch(
+  const response = await fetchWithTimeout(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
       method: 'POST',
@@ -129,10 +165,22 @@ async function callGeminiGenerateContent(
           ...(imageConfig ? { imageConfig } : {}),
         },
       }),
-    }
+    },
+    geminiFetchTimeoutMs,
+    `Timeout durante la chiamata a Gemini (${model}).`
   );
 
-  const result = (await response.json()) as GeminiResponse;
+  let result: GeminiResponse = {};
+
+  try {
+    result = (await response.json()) as GeminiResponse;
+  } catch {
+    result = {
+      error: {
+        message: 'Gemini ha restituito una risposta non valida.',
+      },
+    };
+  }
 
   return { response, result };
 }
@@ -160,7 +208,7 @@ async function validateSingleImageComposition(
 ) {
   const { response, result } = await callGeminiGenerateContent(
     apiKey,
-    'gemini-2.5-flash-image',
+    'gemini-2.5-flash',
     [
       {
         inline_data: {
@@ -270,10 +318,7 @@ export async function POST(req: Request) {
     const safeProductDescription = stripHtmlToPlainText(String(productDescription || '')).slice(0, 1200);
     const safeTargetColorLabel = String(targetColorLabel || '').trim();
     const safeGenerationKind = String(generationKind || '').trim().toLowerCase();
-    const finalImageModel =
-      safeGenerationKind === 'extra'
-        ? 'gemini-3-pro-image-preview'
-        : 'gemini-2.5-flash-image';
+    const finalImageModel = 'gemini-2.0-flash-preview-image-generation';
 
     let garmentFidelityLockProfile = '';
     let extractedColorLockProfile = '';
@@ -302,7 +347,7 @@ export async function POST(req: Request) {
       const { response: garmentAnalysisResponse, result: garmentAnalysisResult } =
         await callGeminiGenerateContent(
           apiKey,
-          'gemini-3-pro-image-preview',
+          'gemini-2.5-flash',
           [...garmentReferenceParts, { text: garmentAnalysisPrompt }],
           ['TEXT']
         );
@@ -337,7 +382,7 @@ export async function POST(req: Request) {
       const { response: colorAnalysisResponse, result: colorAnalysisResult } =
         await callGeminiGenerateContent(
           apiKey,
-          'gemini-3-pro-image-preview',
+          'gemini-2.5-flash',
           [...colorReferenceParts, { text: colorAnalysisPrompt }],
           ['TEXT']
         );
@@ -363,7 +408,7 @@ export async function POST(req: Request) {
         const { response: environmentAnalysisResponse, result: environmentAnalysisResult } =
           await callGeminiGenerateContent(
             apiKey,
-            'gemini-3-pro-image-preview',
+            'gemini-2.5-flash',
             [...environmentReferenceParts, { text: environmentAnalysisPrompt }],
             ['TEXT']
           );
@@ -477,8 +522,7 @@ export async function POST(req: Request) {
           [...finalGenerationParts, { text: attemptPrompt }],
           ['TEXT', 'IMAGE'],
           {
-            aspectRatio: '4:5',
-            imageSize: '2K',
+            aspectRatio: '3:4',
           }
         );
 
