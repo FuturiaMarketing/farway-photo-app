@@ -1,10 +1,16 @@
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 120;
 
-const sourceImageFetchTimeoutMs = 20_000;
+const sourceImageFetchTimeoutMs = 30_000;
 const geminiFetchTimeoutMs = 50_000;
+const analysisModel = 'gemini-2.5-flash';
+const imageGenerationModels = [
+  'gemini-2.5-flash-image',
+  'gemini-3.1-flash-image-preview',
+] as const;
+const maxImageGenerationAttempts = 2;
 
 type GeminiPart = {
   text?: string;
@@ -34,6 +40,10 @@ type GeminiRequestPart = {
     data: string;
   };
 };
+
+function getGeminiParts(result: GeminiResponse) {
+  return (result.candidates || []).flatMap((candidate) => candidate.content?.parts || []);
+}
 
 async function fetchWithTimeout(
   input: RequestInfo | URL,
@@ -71,7 +81,35 @@ function parseDataUrl(imageUrl: string) {
   };
 }
 
+/**
+ * Extract the real remote URL from a local proxy path like
+ * `/api/external-image?url=<encoded>` so the generate route can fetch it
+ * directly instead of making a self-referential HTTP call that deadlocks
+ * on serverless / single-threaded environments.
+ */
+function unwrapProxyUrl(imageUrl: string): string | null {
+  try {
+    // Handle both absolute (https://host/api/external-image?url=...) and
+    // relative (/api/external-image?url=...) forms.
+    const asUrl = imageUrl.startsWith('/')
+      ? new URL(imageUrl, 'http://localhost')
+      : new URL(imageUrl);
+
+    if (asUrl.pathname === '/api/external-image') {
+      const target = asUrl.searchParams.get('url');
+      if (target) return target;
+    }
+  } catch {
+    // not a valid URL, return null
+  }
+  return null;
+}
+
 function resolveExternalImageUrl(imageUrl: string, requestOrigin?: string) {
+  // First, unwrap proxy URLs to avoid self-referential fetch loops.
+  const unwrapped = unwrapProxyUrl(imageUrl);
+  if (unwrapped) return unwrapped;
+
   if (/^https?:\/\//i.test(imageUrl)) {
     return imageUrl;
   }
@@ -85,7 +123,13 @@ function resolveExternalImageUrl(imageUrl: string, requestOrigin?: string) {
 }
 
 function inferMimeType(url: string, requestOrigin?: string) {
-  const pathname = new URL(resolveExternalImageUrl(url, requestOrigin)).pathname.toLowerCase();
+  const resolved = resolveExternalImageUrl(url, requestOrigin);
+  let pathname: string;
+  try {
+    pathname = new URL(resolved).pathname.toLowerCase();
+  } catch {
+    pathname = resolved.toLowerCase();
+  }
 
   if (pathname.endsWith('.jpg') || pathname.endsWith('.jpeg')) return 'image/jpeg';
   if (pathname.endsWith('.webp')) return 'image/webp';
@@ -106,26 +150,41 @@ async function loadInlineImagePart(imageUrl: string, requestOrigin?: string) {
     } satisfies GeminiRequestPart;
   }
 
-  const imgRes = await fetchWithTimeout(
-    resolveExternalImageUrl(imageUrl, requestOrigin),
-    {},
-    sourceImageFetchTimeoutMs,
-    "Timeout nel download dell'immagine sorgente."
-  );
+  const resolvedUrl = resolveExternalImageUrl(imageUrl, requestOrigin);
+  const maxRetries = 2;
+  let lastError: Error | null = null;
 
-  if (!imgRes.ok) {
-    throw new Error(`Impossibile scaricare l'immagine sorgente (${imgRes.status}).`);
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const imgRes = await fetchWithTimeout(
+        resolvedUrl,
+        {},
+        sourceImageFetchTimeoutMs,
+        "Timeout nel download dell'immagine sorgente."
+      );
+
+      if (!imgRes.ok) {
+        throw new Error(`Impossibile scaricare l'immagine sorgente (${imgRes.status}).`);
+      }
+
+      const buffer = await imgRes.arrayBuffer();
+      const mimeType = imgRes.headers.get('content-type') || inferMimeType(imageUrl, requestOrigin);
+
+      return {
+        inline_data: {
+          mime_type: mimeType,
+          data: Buffer.from(buffer).toString('base64'),
+        },
+      } satisfies GeminiRequestPart;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      if (attempt < maxRetries) {
+        await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+      }
+    }
   }
 
-  const buffer = await imgRes.arrayBuffer();
-  const mimeType = imgRes.headers.get('content-type') || inferMimeType(imageUrl, requestOrigin);
-
-  return {
-    inline_data: {
-      mime_type: mimeType,
-      data: Buffer.from(buffer).toString('base64'),
-    },
-  } satisfies GeminiRequestPart;
+  throw lastError || new Error("Impossibile scaricare l'immagine sorgente.");
 }
 
 function stripHtmlToPlainText(value: string) {
@@ -186,7 +245,7 @@ async function callGeminiGenerateContent(
 }
 
 function getGeminiText(result: GeminiResponse) {
-  const parts = result.candidates?.[0]?.content?.parts || [];
+  const parts = getGeminiParts(result);
 
   return parts
     .map((part) => part.text?.trim() || '')
@@ -196,10 +255,36 @@ function getGeminiText(result: GeminiResponse) {
 }
 
 function getGeminiImageData(result: GeminiResponse) {
-  const parts = result.candidates?.[0]?.content?.parts || [];
+  const parts = getGeminiParts(result);
   const imagePart = parts.find((part) => part.inlineData?.data || part.inline_data?.data);
 
   return imagePart?.inlineData?.data || imagePart?.inline_data?.data || '';
+}
+
+async function runTextAnalysis(
+  apiKey: string,
+  prompt: string,
+  imageParts: GeminiRequestPart[],
+  label: string
+) {
+  try {
+    const { response, result } = await callGeminiGenerateContent(
+      apiKey,
+      analysisModel,
+      [...imageParts, { text: prompt }],
+      ['TEXT']
+    );
+
+    if (!response.ok) {
+      console.error(`Errore Gemini ${label}:`, result);
+      return '';
+    }
+
+    return getGeminiText(result);
+  } catch (error) {
+    console.error(`Errore analisi ${label}:`, error);
+    return '';
+  }
 }
 
 async function validateSingleImageComposition(
@@ -241,7 +326,6 @@ export async function POST(req: Request) {
     const {
       imageUrls,
       finalGenerationImageUrls,
-      generationKind,
       garmentReferenceImageUrls,
       colorReferenceImageUrls,
       environmentReferenceImageUrls,
@@ -252,6 +336,10 @@ export async function POST(req: Request) {
       requestOrigin,
     } = await req.json();
     const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || '';
+    const safeRequestOrigin =
+      typeof requestOrigin === 'string' && requestOrigin.trim().length > 0
+        ? requestOrigin
+        : new URL(req.url).origin;
 
     if (!apiKey) {
       return NextResponse.json({ error: 'Chiave API mancante nel file .env.local.' }, { status: 500 });
@@ -284,7 +372,7 @@ export async function POST(req: Request) {
     const imagePartEntries = await Promise.all(
       uniqueImageUrls.map(async (imageUrl: string) => [
         imageUrl,
-        await loadInlineImagePart(imageUrl, requestOrigin),
+        await loadInlineImagePart(imageUrl, safeRequestOrigin),
       ] as const)
     );
     const imagePartMap = new Map<string, GeminiRequestPart>(imagePartEntries);
@@ -317,111 +405,65 @@ export async function POST(req: Request) {
     const safeProductName = String(productName || '').trim();
     const safeProductDescription = stripHtmlToPlainText(String(productDescription || '')).slice(0, 1200);
     const safeTargetColorLabel = String(targetColorLabel || '').trim();
-    const safeGenerationKind = String(generationKind || '').trim().toLowerCase();
-    const finalImageModel = 'gemini-2.0-flash-preview-image-generation';
+    const garmentAnalysisPrompt = [
+      'Analyze only the target garment from the provided original product reference image(s).',
+      safeProductName
+        ? `The target garment is the product titled "${safeProductName}". Ignore any other garment, prop, or accessory.`
+        : '',
+      'Ignore any semantic cues in the product title such as color names, cities, animals, flowers, moods, characters, or seasons unless they are clearly visible in the garment itself.',
+      'Ignore any person, face, body, mannequin, background, and styling context.',
+      'Return only a concise garment fidelity lock profile in English with these exact sections: Core silhouette; Visible construction details; Visible decorative details; Explicitly absent details.',
+      'Only mention details that are clearly visible in the product references.',
+      'If a decorative detail is not clearly visible, do not promote it to present.',
+      'In "Explicitly absent details", list only clearly absent details among common invention risks such as bow, sash, waistband ribbon, decorative belt, contrast trim, ruffles, lace, embroidery, print, pockets, buttons, and extra decorative pieces.',
+      safeProductDescription
+        ? `Supporting product description context: ${safeProductDescription}. Use this text only to confirm garment intent when it matches the visible references. Never let the text add a detail that is not visible in the images.`
+        : '',
+      'This profile will be used as a hard lock for image generation, so be strict and literal.',
+    ]
+      .filter(Boolean)
+      .join(' ');
 
-    let garmentFidelityLockProfile = '';
-    let extractedColorLockProfile = '';
-    let environmentLockProfile = '';
+    const colorAnalysisPrompt = [
+      'Analyze only the garment color from the provided dedicated target-color reference image(s).',
+      'Ignore any text label, category name, or product naming as a source of color truth.',
+      safeTargetColorLabel
+        ? `The label "${safeTargetColorLabel}" is provided only to identify which references belong to the requested colorway. Do not trust the wording of that label for the actual shade.`
+        : '',
+      safeProductName
+        ? `If other garments or visual elements appear, isolate only the garment matching the product title "${safeProductName}".`
+        : '',
+      'Ignore any visible person, skin, hair, background, set design, and lighting cast as much as possible.',
+      'Look only at the garment fabric pixels.',
+      'Return only a concise exact color lock profile in English: primary hue, undertone, saturation, brightness/value, depth, and any clearly visible secondary tone or trim.',
+      'Be literal and precise. Do not describe mood, styling, the model, or the scene.',
+    ]
+      .filter(Boolean)
+      .join(' ');
 
-    try {
-      const garmentAnalysisPrompt = [
-        'Analyze only the target garment from the provided original product reference image(s).',
-        safeProductName
-          ? `The target garment is the product titled "${safeProductName}". Ignore any other garment, prop, or accessory.`
-          : '',
-        'Ignore any semantic cues in the product title such as color names, cities, animals, flowers, moods, characters, or seasons unless they are clearly visible in the garment itself.',
-        'Ignore any person, face, body, mannequin, background, and styling context.',
-        'Return only a concise garment fidelity lock profile in English with these exact sections: Core silhouette; Visible construction details; Visible decorative details; Explicitly absent details.',
-        'Only mention details that are clearly visible in the product references.',
-        'If a decorative detail is not clearly visible, do not promote it to present.',
-        'In "Explicitly absent details", list only clearly absent details among common invention risks such as bow, sash, waistband ribbon, decorative belt, contrast trim, ruffles, lace, embroidery, print, pockets, buttons, and extra decorative pieces.',
-        safeProductDescription
-          ? `Supporting product description context: ${safeProductDescription}. Use this text only to confirm garment intent when it matches the visible references. Never let the text add a detail that is not visible in the images.`
-          : '',
-        'This profile will be used as a hard lock for image generation, so be strict and literal.',
-      ]
-        .filter(Boolean)
-        .join(' ');
+    const environmentAnalysisPrompt = [
+      'Analyze only the environment and scene design from the provided ambientazione reference image(s).',
+      'Ignore every garment, accessory, child, adult, face, and body completely.',
+      'Return only a concise environment lock profile in English: background; lighting; mood; props; spatial cues; natural action suggestions.',
+      'This profile must describe only the scene and never any clothing detail.',
+    ].join(' ');
 
-      const { response: garmentAnalysisResponse, result: garmentAnalysisResult } =
-        await callGeminiGenerateContent(
-          apiKey,
-          'gemini-2.5-flash',
-          [...garmentReferenceParts, { text: garmentAnalysisPrompt }],
-          ['TEXT']
-        );
-
-      if (garmentAnalysisResponse.ok) {
-        garmentFidelityLockProfile = getGeminiText(garmentAnalysisResult);
-      } else {
-        console.error('Errore Gemini garment analysis:', garmentAnalysisResult);
-      }
-    } catch (error) {
-      console.error('Errore estrazione profilo garment fidelity:', error);
-    }
-
-    try {
-      const colorAnalysisPrompt = [
-        'Analyze only the garment color from the provided dedicated target-color reference image(s).',
-        'Ignore any text label, category name, or product naming as a source of color truth.',
-        safeTargetColorLabel
-          ? `The label "${safeTargetColorLabel}" is provided only to identify which references belong to the requested colorway. Do not trust the wording of that label for the actual shade.`
-          : '',
-        safeProductName
-          ? `If other garments or visual elements appear, isolate only the garment matching the product title "${safeProductName}".`
-          : '',
-        'Ignore any visible person, skin, hair, background, set design, and lighting cast as much as possible.',
-        'Look only at the garment fabric pixels.',
-        'Return only a concise exact color lock profile in English: primary hue, undertone, saturation, brightness/value, depth, and any clearly visible secondary tone or trim.',
-        'Be literal and precise. Do not describe mood, styling, the model, or the scene.',
-      ]
-        .filter(Boolean)
-        .join(' ');
-
-      const { response: colorAnalysisResponse, result: colorAnalysisResult } =
-        await callGeminiGenerateContent(
-          apiKey,
-          'gemini-2.5-flash',
-          [...colorReferenceParts, { text: colorAnalysisPrompt }],
-          ['TEXT']
-        );
-
-      if (colorAnalysisResponse.ok) {
-        extractedColorLockProfile = getGeminiText(colorAnalysisResult);
-      } else {
-        console.error('Errore Gemini color analysis:', colorAnalysisResult);
-      }
-    } catch (error) {
-      console.error('Errore estrazione profilo colore:', error);
-    }
-
-    try {
-      if (environmentReferenceParts.length > 0) {
-        const environmentAnalysisPrompt = [
-          'Analyze only the environment and scene design from the provided ambientazione reference image(s).',
-          'Ignore every garment, accessory, child, adult, face, and body completely.',
-          'Return only a concise environment lock profile in English: background; lighting; mood; props; spatial cues; natural action suggestions.',
-          'This profile must describe only the scene and never any clothing detail.',
-        ].join(' ');
-
-        const { response: environmentAnalysisResponse, result: environmentAnalysisResult } =
-          await callGeminiGenerateContent(
+    const [
+      garmentFidelityLockProfile,
+      extractedColorLockProfile,
+      environmentLockProfile,
+    ] = await Promise.all([
+      runTextAnalysis(apiKey, garmentAnalysisPrompt, garmentReferenceParts, 'garment analysis'),
+      runTextAnalysis(apiKey, colorAnalysisPrompt, colorReferenceParts, 'color analysis'),
+      environmentReferenceParts.length > 0
+        ? runTextAnalysis(
             apiKey,
-            'gemini-2.5-flash',
-            [...environmentReferenceParts, { text: environmentAnalysisPrompt }],
-            ['TEXT']
-          );
-
-        if (environmentAnalysisResponse.ok) {
-          environmentLockProfile = getGeminiText(environmentAnalysisResult);
-        } else {
-          console.error('Errore Gemini environment analysis:', environmentAnalysisResult);
-        }
-      }
-    } catch (error) {
-      console.error('Errore estrazione profilo ambientazione:', error);
-    }
+            environmentAnalysisPrompt,
+            environmentReferenceParts,
+            'environment analysis'
+          )
+        : Promise.resolve(''),
+    ]);
 
     const finalPrompt = [
       'Follow this process exactly.',
@@ -504,8 +546,11 @@ export async function POST(req: Request) {
 
     let generatedImageBase64 = '';
     let lastImageResult: GeminiResponse | null = null;
+    let lastGenerationError =
+      'Gemini continua a restituire un layout non valido (split-screen o multi-panel). Riprova la generazione.';
+    let lastGenerationStatus = 500;
 
-    for (let attempt = 0; attempt < 3; attempt += 1) {
+    generationLoop: for (let attempt = 0; attempt < maxImageGenerationAttempts; attempt += 1) {
       const attemptPrompt = [
         finalPrompt,
         attempt > 0
@@ -515,10 +560,10 @@ export async function POST(req: Request) {
         .filter(Boolean)
         .join(' ');
 
-      const { response: imageResponse, result: imageResult } =
-        await callGeminiGenerateContent(
+      for (const imageGenerationModel of imageGenerationModels) {
+        const { response: imageResponse, result: imageResult } = await callGeminiGenerateContent(
           apiKey,
-          finalImageModel,
+          imageGenerationModel,
           [...finalGenerationParts, { text: attemptPrompt }],
           ['TEXT', 'IMAGE'],
           {
@@ -526,50 +571,46 @@ export async function POST(req: Request) {
           }
         );
 
-      lastImageResult = imageResult;
+        lastImageResult = imageResult;
 
-      if (!imageResponse.ok) {
-        console.error('Errore Gemini image generation:', imageResult);
-        return NextResponse.json(
-          {
-            error: `Errore Google (${imageResponse.status}): ${imageResult.error?.message || 'Errore sconosciuto'}`,
-          },
-          { status: imageResponse.status }
-        );
-      }
+        if (!imageResponse.ok) {
+          console.error(`Errore Gemini image generation (${imageGenerationModel}):`, imageResult);
+          lastGenerationStatus = imageResponse.status;
+          lastGenerationError = `Errore Google (${imageResponse.status}): ${imageResult.error?.message || 'Errore sconosciuto'}`;
+          continue;
+        }
 
-      const candidateImageBase64 = getGeminiImageData(imageResult);
-      const textExplanation = getGeminiText(imageResult);
+        const candidateImageBase64 = getGeminiImageData(imageResult);
+        const textExplanation = getGeminiText(imageResult);
 
-      if (!candidateImageBase64) {
-        console.error('Risposta Gemini senza immagine:', JSON.stringify(imageResult));
-        return NextResponse.json(
-          {
-            error:
-              textExplanation ||
-              'Gemini ha risposto senza un output immagine. Verifica che la chiave API abbia accesso ai modelli image e che il prompt non venga filtrato.',
-          },
-          { status: 500 }
-        );
-      }
+        if (!candidateImageBase64) {
+          console.error(
+            `Risposta Gemini senza immagine (${imageGenerationModel}):`,
+            JSON.stringify(imageResult)
+          );
+          lastGenerationStatus = 500;
+          lastGenerationError =
+            textExplanation ||
+            'Gemini ha risposto senza un output immagine. Verifica che la chiave API abbia accesso ai modelli image e che il prompt non venga filtrato.';
+          continue;
+        }
 
-      const isSingleImage = await validateSingleImageComposition(apiKey, candidateImageBase64);
+        const isSingleImage = await validateSingleImageComposition(apiKey, candidateImageBase64);
 
-      if (isSingleImage || attempt === 2) {
-        generatedImageBase64 = candidateImageBase64;
-        break;
+        if (isSingleImage || attempt === maxImageGenerationAttempts - 1) {
+          generatedImageBase64 = candidateImageBase64;
+          break generationLoop;
+        }
+
+        lastGenerationStatus = 500;
+        lastGenerationError =
+          'Gemini continua a restituire un layout non valido (split-screen o multi-panel). Riprova la generazione.';
       }
     }
 
     if (!generatedImageBase64) {
       console.error('Impossibile ottenere un output immagine valido:', JSON.stringify(lastImageResult));
-      return NextResponse.json(
-        {
-          error:
-            'Gemini continua a restituire un layout non valido (split-screen o multi-panel). Riprova la generazione.',
-        },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: lastGenerationError }, { status: lastGenerationStatus });
     }
 
     return NextResponse.json({ image: generatedImageBase64 });

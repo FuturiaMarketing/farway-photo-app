@@ -49,6 +49,26 @@ function inferMimeType(url: string) {
   return 'image/png';
 }
 
+/**
+ * Extract the real remote URL from a local proxy path like
+ * `/api/external-image?url=<encoded>` so we fetch it directly
+ * instead of making a self-referential HTTP call.
+ */
+function unwrapProxyUrl(url: string): string | null {
+  try {
+    const asUrl = url.startsWith('/')
+      ? new URL(url, 'http://localhost')
+      : new URL(url);
+    if (asUrl.pathname === '/api/external-image') {
+      const target = asUrl.searchParams.get('url');
+      if (target) return target;
+    }
+  } catch {
+    // not a valid URL
+  }
+  return null;
+}
+
 async function loadInlineImagePart(imageUrl: string) {
   const inlineImage = parseDataUrl(imageUrl);
 
@@ -61,14 +81,17 @@ async function loadInlineImagePart(imageUrl: string) {
     } satisfies GeminiRequestPart;
   }
 
-  const imgRes = await fetch(imageUrl);
+  // Unwrap proxy URLs to avoid self-referential fetch loops on the server.
+  const resolvedUrl = unwrapProxyUrl(imageUrl) || imageUrl;
+
+  const imgRes = await fetch(resolvedUrl);
 
   if (!imgRes.ok) {
     throw new Error(`Impossibile scaricare l'immagine sorgente (${imgRes.status}).`);
   }
 
   const buffer = await imgRes.arrayBuffer();
-  const mimeType = imgRes.headers.get('content-type') || inferMimeType(imageUrl);
+  const mimeType = imgRes.headers.get('content-type') || inferMimeType(resolvedUrl);
 
   return {
     inline_data: {
