@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import Image from 'next/image';
+import Image from '@/components/safe-image';
 import Link from 'next/link';
 import { ArrowLeft, Camera, Check, CheckCircle2, ChevronDown, CircleDashed, Download, ExternalLink, Loader2, RefreshCw, Settings, Upload, Wand2, X, XCircle } from 'lucide-react';
 
@@ -1310,6 +1310,7 @@ export default function Home() {
         if (Array.isArray(parsed)) {
           setProducts(parsed);
           setIsLoadingProducts(false);
+          void loadProducts();
           return;
         }
       } catch {
@@ -1885,13 +1886,17 @@ export default function Home() {
 
         if (!cancelled) {
           setGeneratedProductIds(ids);
-          setPersistedAppState((prev) => ({
-            ...prev,
-            generatedProductIdsByProject: {
-              ...prev.generatedProductIdsByProject,
-              [projectId]: ids,
-            },
-          }));
+          setPersistedAppState((prev) => {
+            const prevIds = prev.generatedProductIdsByProject[projectId] || [];
+            if (JSON.stringify(prevIds) === JSON.stringify(ids)) return prev;
+            return {
+              ...prev,
+              generatedProductIdsByProject: {
+                ...prev.generatedProductIdsByProject,
+                [projectId]: ids,
+              },
+            };
+          });
         }
       } catch {
         if (!cancelled) {
@@ -3228,6 +3233,8 @@ export default function Home() {
       window.setTimeout(resolve, ms);
     });
 
+  const generateRequestTimeoutMs = 140_000;
+
   const upsertGeneratedResult = (
     results: GeneratedResult[],
     nextResult: GeneratedResult
@@ -3455,28 +3462,64 @@ export default function Home() {
     let fetchError: Error | null = null;
 
     for (let attempt = 0; attempt < 3; attempt += 1) {
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), generateRequestTimeoutMs);
+
       try {
         response = await fetch('/api/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(requestBody),
+          signal: controller.signal,
         });
         break;
       } catch (error: unknown) {
-        fetchError =
-          error instanceof Error ? error : new Error('Failed to fetch');
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          fetchError = new Error(
+            'Timeout generazione immagine: il server non ha risposto in tempo.'
+          );
+        } else if (error instanceof Error) {
+          if (error.message.toLowerCase().includes('failed to fetch')) {
+            fetchError = new Error(
+              'Connessione interrotta durante la generazione. Verifica rete, VPN o tunnel e riprova.'
+            );
+          } else {
+            fetchError = error;
+          }
+        } else {
+          fetchError = new Error('Errore di rete sconosciuto durante la generazione.');
+        }
 
         if (attempt < 2) {
           await waitFor(600 * (attempt + 1));
         }
+      } finally {
+        window.clearTimeout(timeoutId);
       }
     }
 
     if (!response) {
-      throw fetchError || new Error('Failed to fetch');
+      throw fetchError || new Error('Richiesta generazione non completata.');
     }
-    const data = (await response.json()) as { image?: string; error?: string };
-    if (!response.ok || !data.image) throw new Error(data.error || "L'IA ha risposto con un errore");
+    const rawBody = await response.text();
+    let data: { image?: string; error?: string } = {};
+
+    if (rawBody) {
+      try {
+        data = JSON.parse(rawBody) as { image?: string; error?: string };
+      } catch {
+        if (!response.ok) {
+          throw new Error(`Errore server (${response.status}): risposta non valida.`);
+        }
+
+        throw new Error('Risposta non valida dal servizio di generazione immagini.');
+      }
+    }
+
+    if (!response.ok || !data.image) {
+      throw new Error(data.error || `Errore generazione immagini (${response.status}).`);
+    }
+
     const optimizedUrl = await optimizeGeneratedImage(`data:image/png;base64,${data.image}`);
     return { key: args.key, kind: args.kind, pose: args.pose, color: args.targetColor, url: optimizedUrl } satisfies GeneratedResult;
   };
@@ -3977,6 +4020,12 @@ export default function Home() {
             aria-label="Impostazioni"
           >
             <Settings size={18} />
+          </Link>
+          <Link
+            href="/snake"
+            className="rounded-xl border border-[#D7D9DD] bg-white px-3 py-2 text-sm font-black text-[#103D66] transition-colors hover:bg-[#EEF1F4]"
+          >
+            Snake
           </Link>
           <button onClick={() => void loadProducts(true)} className="flex items-center gap-2 rounded-xl bg-[#EEF1F4] px-4 py-2 text-sm font-bold">
             <RefreshCw size={16} className={isLoadingProducts ? 'animate-spin' : ''} /> Aggiorna
@@ -5453,3 +5502,4 @@ export default function Home() {
     </div>
   );
 }
+
