@@ -308,6 +308,7 @@ async function generateWooShortDescriptionMarkdown(
   try {
     const prompt = [
       'Write a WooCommerce short description in Italian, in markdown only, with no code fences.',
+      'Never answer in English or any other language.',
       productName ? `Product title: ${productName}.` : '',
       `Base long description: ${normalizedDescription}`,
       'Rewrite it into a short premium excerpt for the area above the purchase button.',
@@ -763,11 +764,6 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
             .map((image) => (typeof image.id === 'number' ? { id: image.id } : { src: image.src }))
         : [];
 
-    const existingImageIdByName = new Map(
-      (product.images || [])
-        .filter((image): image is Required<Pick<NonNullable<WooProductResponse['images']>[number], 'id' | 'name'>> => typeof image.id === 'number' && Boolean(image.name))
-        .map((image) => [image.name, image.id])
-    );
     const preservedExistingFrontImages =
       syncMode === 'replace'
         ? (product.images || [])
@@ -879,14 +875,11 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
     );
     const assetIdByKey = new Map<string, number>();
 
-    for (const asset of uniqueAssets) {
-      const existingId = existingImageIdByName.get(asset.name);
-      if (existingId) {
-        assetIdByKey.set(asset.assetKey, existingId);
-      }
-    }
-
-    const assetsNeedingUpload = uniqueAssets.filter((asset) => !assetIdByKey.has(asset.assetKey));
+    // NOTE: We intentionally do NOT reuse existing WooCommerce media IDs by name.
+    // Doing so would cause stale images to be reused when the user regenerates an image
+    // and re-syncs: the old media entry would be matched by name and the new image would
+    // never be uploaded. Always re-uploading guarantees the latest generated image is used.
+    const assetsNeedingUpload = uniqueAssets;
 
     if (assetsNeedingUpload.length > 0) {
       await updateJob(jobId, {
