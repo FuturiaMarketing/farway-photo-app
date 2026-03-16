@@ -3,7 +3,7 @@ import { ensureDatabaseSchema, hasDatabaseConnection, readBinaryAssetByKey, writ
 
 export const runtime = 'nodejs';
 
-const remoteImageFetchTimeoutMs = 25_000;
+const remoteImageFetchTimeoutMs = 10_000;
 const maxRetries = 2;
 const cacheNamespace = 'ext-img-cache';
 
