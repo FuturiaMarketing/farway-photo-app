@@ -159,6 +159,43 @@ export async function writeBinaryAsset(input: WriteBinaryAssetInput) {
   return result.rows[0]?.id || assetId;
 }
 
+export async function readBinaryAssetByKey(namespace: string, key: string): Promise<StoredBinaryAsset | null> {
+  if (!hasDatabaseConnection()) {
+    return null;
+  }
+
+  await ensureDatabaseSchema();
+
+  const activePool = getPool();
+  const result = await activePool.query<{
+    id: string;
+    mime_type: string;
+    bytes: Buffer;
+    metadata: Record<string, unknown> | null;
+  }>(
+    `
+      SELECT id, mime_type, bytes, metadata
+      FROM app_binary_assets
+      WHERE namespace = $1 AND key = $2
+      LIMIT 1
+    `,
+    [namespace, key]
+  );
+
+  if (result.rowCount === 0) {
+    return null;
+  }
+
+  const row = result.rows[0];
+
+  return {
+    id: row.id,
+    mimeType: row.mime_type,
+    bytes: row.bytes,
+    metadata: row.metadata || {},
+  };
+}
+
 export async function readBinaryAssetById(assetId: string): Promise<StoredBinaryAsset | null> {
   if (!hasDatabaseConnection()) {
     return null;

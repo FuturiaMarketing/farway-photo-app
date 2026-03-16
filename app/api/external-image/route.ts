@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
+import { ensureDatabaseSchema, hasDatabaseConnection, readBinaryAssetByKey, writeBinaryAsset } from '@/lib/server/db';
 
 export const runtime = 'nodejs';
 
 const remoteImageFetchTimeoutMs = 25_000;
 const maxRetries = 2;
+const cacheNamespace = 'ext-img-cache';
 
 async function fetchWithTimeout(url: string) {
   const controller = new AbortController();
@@ -17,7 +19,6 @@ async function fetchWithTimeout(url: string) {
           'Mozilla/5.0 (compatible; FarwayPhotoApp/1.0; +https://farwaymilano.com)',
       },
       signal: controller.signal,
-      next: { revalidate: 86_400 },
     });
   } finally {
     clearTimeout(timeoutId);
@@ -42,6 +43,29 @@ export async function GET(req: Request) {
 
   if (!['http:', 'https:'].includes(targetUrl.protocol)) {
     return NextResponse.json({ error: 'Protocollo immagine non supportato.' }, { status: 400 });
+  }
+
+  const cacheKey = targetUrl.toString();
+
+  // Check DB cache first — fast path, consistent across all devices/serverless instances.
+  if (hasDatabaseConnection()) {
+    try {
+      await ensureDatabaseSchema();
+      const cached = await readBinaryAssetByKey(cacheNamespace, cacheKey);
+
+      if (cached) {
+        return new NextResponse(new Uint8Array(cached.bytes), {
+          headers: {
+            'Content-Type': cached.mimeType,
+            'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
+            'Access-Control-Allow-Origin': '*',
+            'X-Cache': 'HIT',
+          },
+        });
+      }
+    } catch {
+      // DB unavailable — fall through to fetch from origin.
+    }
   }
 
   let lastError = 'Errore sconosciuto nel proxy immagine.';
@@ -72,11 +96,25 @@ export async function GET(req: Request) {
       const contentType = response.headers.get('content-type') || 'application/octet-stream';
       const buffer = await response.arrayBuffer();
 
+      // Store in DB cache asynchronously — don't block the response.
+      if (hasDatabaseConnection()) {
+        writeBinaryAsset({
+          namespace: cacheNamespace,
+          key: cacheKey,
+          mimeType: contentType,
+          bytes: Buffer.from(buffer),
+          metadata: { cachedAt: new Date().toISOString() },
+        }).catch(() => {
+          // Cache write failure is non-fatal.
+        });
+      }
+
       return new NextResponse(buffer, {
         headers: {
           'Content-Type': contentType,
           'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
           'Access-Control-Allow-Origin': '*',
+          'X-Cache': 'MISS',
         },
       });
     } catch (error: unknown) {
