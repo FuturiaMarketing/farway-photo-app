@@ -991,6 +991,7 @@ export default function Home() {
   const [generatedShortDescriptionHtml, setGeneratedShortDescriptionHtml] = useState('');
   const [acfValues, setAcfValues] = useState<AcfFieldValues>({});
   const hydratedProgressStateProjectIdRef = useRef<string | null>(null);
+  const productLoadRequestIdRef = useRef(0);
   const [selectedPrimarySyncResultKey, setSelectedPrimarySyncResultKey] = useState('');
   const [genError, setGenError] = useState<string | null>(null);
   const [descriptionError, setDescriptionError] = useState<string | null>(null);
@@ -1328,6 +1329,8 @@ export default function Home() {
   }, []);
 
   const loadProductState = useCallback(async (product: Product) => {
+    const requestId = productLoadRequestIdRef.current + 1;
+    productLoadRequestIdRef.current = requestId;
     const defaultColor = product.colors.length === 1 ? product.colors[0] || '' : '';
     const defaultAdditionalScenarios = Array.isArray(product.selectedAdditionalScenarios)
       ? product.selectedAdditionalScenarios.filter(
@@ -1376,11 +1379,18 @@ export default function Home() {
     setGenError(null);
     setStage('idle');
     setShowWooSyncCompleteModal(false);
+    setGeneratedResults([]);
+    setExcludedSyncResultKeys([]);
+    setSelectedPrimarySyncResultKey('');
 
     const sessionKey = buildProductSessionKey(projectId, product.id);
     const selectionKey = buildProjectSelectionKey(projectId);
     const rawSession = window.localStorage.getItem(sessionKey);
     const remoteStoredState = await readRemoteProductSession(projectId, product.id);
+
+    if (requestId !== productLoadRequestIdRef.current) {
+      return;
+    }
 
     let nextState = defaultState;
 
@@ -1447,6 +1457,11 @@ export default function Home() {
           : imageUrl
       )
     );
+
+    if (requestId !== productLoadRequestIdRef.current) {
+      return;
+    }
+
     const migratedManualSourceMap = new Map(
       parsedManualSourceImages.map((imageUrl, index) => [imageUrl, migratedManualSourceImages[index]])
     );
@@ -1467,6 +1482,10 @@ export default function Home() {
       storedResults = localResults.length > 0 ? localResults : storedResults;
     } catch {
       storedResults = remoteStoredState.generatedResults || [];
+    }
+
+    if (requestId !== productLoadRequestIdRef.current) {
+      return;
     }
 
     setSelectedSourceImages(nextState.selectedSourceImages);
@@ -2985,6 +3004,11 @@ export default function Home() {
 
   const syncToWooCommerce = async () => {
     if (!selectedProduct || generatedResults.length === 0) return;
+
+    if (!hasLoadedSession) {
+      setWooSyncMessage('Attendi il caricamento completo del prodotto prima di sincronizzare.');
+      return;
+    }
 
     const syncResults = includedSyncResults;
 
@@ -5334,7 +5358,7 @@ export default function Home() {
                     </a>
                   )}
                 </div>
-                <button onClick={syncToWooCommerce} disabled={includedSyncResults.length === 0 || isSyncingWoo} className="flex w-full items-center justify-center gap-3 rounded-2xl bg-[#6DA34D] py-5 text-lg font-black text-white disabled:bg-slate-300"><Upload size={24} /> {isSyncingWoo ? 'Sincronizzazione in corso...' : 'Sincronizza su WooCommerce'}</button>
+                <button onClick={syncToWooCommerce} disabled={!hasLoadedSession || includedSyncResults.length === 0 || isSyncingWoo} className="flex w-full items-center justify-center gap-3 rounded-2xl bg-[#6DA34D] py-5 text-lg font-black text-white disabled:bg-slate-300"><Upload size={24} /> {isSyncingWoo ? 'Sincronizzazione in corso...' : 'Sincronizza su WooCommerce'}</button>
               </div>
             </div>
           )}
@@ -5509,4 +5533,3 @@ export default function Home() {
     </div>
   );
 }
-
