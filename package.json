@@ -8,7 +8,10 @@
     "start": "next start",
     "lint": "eslint",
     "woo:quality:scan": "node scripts/farway-woo-image-quality-retrofit.cjs",
-    "woo:quality:apply": "node scripts/farway-woo-image-quality-retrofit.cjs --apply"
+    "woo:quality:apply": "node scripts/farway-woo-image-quality-retrofit.cjs --apply",
+    "woo:media:cleanup:scan": "node scripts/farway-clean-unused-app-media.cjs",
+    "woo:media:cleanup:apply-gallery": "node scripts/farway-clean-unused-app-media.cjs --apply-gallery",
+    "woo:media:cleanup:apply-all": "node scripts/farway-clean-unused-app-media.cjs --apply-gallery --apply-delete"
   },
   "dependencies": {
     "@woocommerce/woocommerce-rest-api": "^1.0.2",
