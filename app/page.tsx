@@ -3264,7 +3264,8 @@ export default function Home() {
       window.setTimeout(resolve, ms);
     });
 
-  const generateRequestTimeoutMs = 140_000;
+  const generateRequestTimeoutMs = 280_000;
+  const maxGenerateRequestAttempts = 2;
 
   const upsertGeneratedResult = (
     results: GeneratedResult[],
@@ -3492,7 +3493,7 @@ export default function Home() {
     let response: Response | null = null;
     let fetchError: Error | null = null;
 
-    for (let attempt = 0; attempt < 3; attempt += 1) {
+    for (let attempt = 0; attempt < maxGenerateRequestAttempts; attempt += 1) {
       const controller = new AbortController();
       const timeoutId = window.setTimeout(() => controller.abort(), generateRequestTimeoutMs);
 
@@ -3521,7 +3522,7 @@ export default function Home() {
           fetchError = new Error('Errore di rete sconosciuto durante la generazione.');
         }
 
-        if (attempt < 2) {
+        if (attempt < maxGenerateRequestAttempts - 1) {
           await waitFor(600 * (attempt + 1));
         }
       } finally {

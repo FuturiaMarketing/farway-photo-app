@@ -1,16 +1,19 @@
 import { NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 const sourceImageFetchTimeoutMs = 30_000;
-const geminiFetchTimeoutMs = 50_000;
+const geminiFetchTimeoutMs = 70_000;
+const analysisGeminiFetchTimeoutMs = 30_000;
+const validationGeminiFetchTimeoutMs = 12_000;
 const analysisModel = 'gemini-2.5-flash';
 const imageGenerationModels = [
   'gemini-2.5-flash-image',
   'gemini-3.1-flash-image-preview',
 ] as const;
 const maxImageGenerationAttempts = 2;
+const maxGenerationReferenceImages = 8;
 
 type GeminiPart = {
   text?: string;
@@ -203,7 +206,8 @@ async function callGeminiGenerateContent(
   imageConfig?: {
     aspectRatio?: string;
     imageSize?: string;
-  }
+  },
+  timeoutMs = geminiFetchTimeoutMs
 ) {
   const response = await fetchWithTimeout(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
@@ -225,7 +229,7 @@ async function callGeminiGenerateContent(
         },
       }),
     },
-    geminiFetchTimeoutMs,
+    timeoutMs,
     `Timeout durante la chiamata a Gemini (${model}).`
   );
 
@@ -272,7 +276,9 @@ async function runTextAnalysis(
       apiKey,
       analysisModel,
       [...imageParts, { text: prompt }],
-      ['TEXT']
+      ['TEXT'],
+      undefined,
+      analysisGeminiFetchTimeoutMs
     );
 
     if (!response.ok) {
@@ -291,34 +297,41 @@ async function validateSingleImageComposition(
   apiKey: string,
   imageBase64: string
 ) {
-  const { response, result } = await callGeminiGenerateContent(
-    apiKey,
-    'gemini-2.5-flash',
-    [
-      {
-        inline_data: {
-          mime_type: 'image/png',
-          data: imageBase64,
+  try {
+    const { response, result } = await callGeminiGenerateContent(
+      apiKey,
+      'gemini-2.5-flash',
+      [
+        {
+          inline_data: {
+            mime_type: 'image/png',
+            data: imageBase64,
+          },
         },
-      },
-      {
-        text: [
-          'Inspect this generated fashion image.',
-          'Answer with one word only: VALID or INVALID.',
-          'Return VALID only if the image is a single coherent portrait photograph in 4:5 style composition, with one continuous scene and no split-screen or multi-panel layout.',
-          'Return INVALID if the image looks like a collage, diptych, split-screen, side-by-side composition, mirrored layout, before/after comparison, multiple panels, or multiple framings stitched into one canvas.',
-        ].join(' '),
-      },
-    ],
-    ['TEXT']
-  );
+        {
+          text: [
+            'Inspect this generated fashion image.',
+            'Answer with one word only: VALID or INVALID.',
+            'Return VALID only if the image is a single coherent portrait photograph in 4:5 style composition, with one continuous scene and no split-screen or multi-panel layout.',
+            'Return INVALID if the image looks like a collage, diptych, split-screen, side-by-side composition, mirrored layout, before/after comparison, multiple panels, or multiple framings stitched into one canvas.',
+          ].join(' '),
+        },
+      ],
+      ['TEXT'],
+      undefined,
+      validationGeminiFetchTimeoutMs
+    );
 
-  if (!response.ok) {
+    if (!response.ok) {
+      return true;
+    }
+
+    const verdict = getGeminiText(result).toUpperCase();
+    return verdict.includes('VALID') && !verdict.includes('INVALID');
+  } catch (error) {
+    console.warn('Validazione composizione saltata per errore transitorio:', error);
     return true;
   }
-
-  const verdict = getGeminiText(result).toUpperCase();
-  return verdict.includes('VALID') && !verdict.includes('INVALID');
 }
 
 export async function POST(req: Request) {
@@ -385,6 +398,10 @@ export async function POST(req: Request) {
             .map((imageUrl: string) => imagePartMap.get(imageUrl))
             .filter((part): part is GeminiRequestPart => Boolean(part))
         : imageParts;
+    const generationReferenceParts = (finalGenerationParts.length > 0 ? finalGenerationParts : imageParts).slice(
+      0,
+      maxGenerationReferenceImages
+    );
     const garmentReferenceParts = safeGarmentReferenceImageUrls
       .map((imageUrl: string) => imagePartMap.get(imageUrl))
       .filter((part): part is GeminiRequestPart => Boolean(part));
@@ -561,50 +578,60 @@ export async function POST(req: Request) {
         .join(' ');
 
       for (const imageGenerationModel of imageGenerationModels) {
-        const { response: imageResponse, result: imageResult } = await callGeminiGenerateContent(
-          apiKey,
-          imageGenerationModel,
-          [...finalGenerationParts, { text: attemptPrompt }],
-          ['TEXT', 'IMAGE'],
-          {
-            aspectRatio: '3:4',
-          }
-        );
-
-        lastImageResult = imageResult;
-
-        if (!imageResponse.ok) {
-          console.error(`Errore Gemini image generation (${imageGenerationModel}):`, imageResult);
-          lastGenerationStatus = imageResponse.status;
-          lastGenerationError = `Errore Google (${imageResponse.status}): ${imageResult.error?.message || 'Errore sconosciuto'}`;
-          continue;
-        }
-
-        const candidateImageBase64 = getGeminiImageData(imageResult);
-        const textExplanation = getGeminiText(imageResult);
-
-        if (!candidateImageBase64) {
-          console.error(
-            `Risposta Gemini senza immagine (${imageGenerationModel}):`,
-            JSON.stringify(imageResult)
+        try {
+          const { response: imageResponse, result: imageResult } = await callGeminiGenerateContent(
+            apiKey,
+            imageGenerationModel,
+            [...generationReferenceParts, { text: attemptPrompt }],
+            ['TEXT', 'IMAGE'],
+            {
+              aspectRatio: '3:4',
+            },
+            geminiFetchTimeoutMs
           );
+
+          lastImageResult = imageResult;
+
+          if (!imageResponse.ok) {
+            console.error(`Errore Gemini image generation (${imageGenerationModel}):`, imageResult);
+            lastGenerationStatus = imageResponse.status;
+            lastGenerationError = `Errore Google (${imageResponse.status}): ${imageResult.error?.message || 'Errore sconosciuto'}`;
+            continue;
+          }
+
+          const candidateImageBase64 = getGeminiImageData(imageResult);
+          const textExplanation = getGeminiText(imageResult);
+
+          if (!candidateImageBase64) {
+            console.error(
+              `Risposta Gemini senza immagine (${imageGenerationModel}):`,
+              JSON.stringify(imageResult)
+            );
+            lastGenerationStatus = 500;
+            lastGenerationError =
+              textExplanation ||
+              'Gemini ha risposto senza un output immagine. Verifica che la chiave API abbia accesso ai modelli image e che il prompt non venga filtrato.';
+            continue;
+          }
+
+          const isSingleImage = await validateSingleImageComposition(apiKey, candidateImageBase64);
+
+          if (isSingleImage || attempt === maxImageGenerationAttempts - 1) {
+            generatedImageBase64 = candidateImageBase64;
+            break generationLoop;
+          }
+
           lastGenerationStatus = 500;
           lastGenerationError =
-            textExplanation ||
-            'Gemini ha risposto senza un output immagine. Verifica che la chiave API abbia accesso ai modelli image e che il prompt non venga filtrato.';
+            'Gemini continua a restituire un layout non valido (split-screen o multi-panel). Riprova la generazione.';
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : 'Errore imprevisto durante la generazione immagine.';
+          console.error(`Errore transitorio Gemini (${imageGenerationModel}):`, message);
+          lastGenerationStatus = message.toLowerCase().includes('timeout') ? 504 : 500;
+          lastGenerationError = message;
           continue;
         }
-
-        const isSingleImage = await validateSingleImageComposition(apiKey, candidateImageBase64);
-
-        if (isSingleImage || attempt === maxImageGenerationAttempts - 1) {
-          generatedImageBase64 = candidateImageBase64;
-          break generationLoop;
-        }
-
-        lastGenerationStatus = 500;
-        lastGenerationError =
-          'Gemini continua a restituire un layout non valido (split-screen o multi-panel). Riprova la generazione.';
       }
     }
 
@@ -617,6 +644,7 @@ export async function POST(req: Request) {
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Errore sconosciuto';
     console.error('Errore Interno:', error);
-    return NextResponse.json({ error: `Errore Interno: ${message}` }, { status: 500 });
+    const status = message.toLowerCase().includes('timeout') ? 504 : 500;
+    return NextResponse.json({ error: `Errore Interno: ${message}` }, { status });
   }
 }
