@@ -39,6 +39,9 @@ export async function POST(req: Request) {
       dataUrl?: string;
       namespace?: string;
       fileName?: string;
+      syncProductId?: number;
+      syncResultKey?: string;
+      sourceChecksum?: string;
     };
 
     const projectId = String(body.projectId || '').trim();
@@ -46,6 +49,9 @@ export async function POST(req: Request) {
     const dataUrl = String(body.dataUrl || '').trim();
     const namespace = String(body.namespace || 'ambientazioni-references').trim();
     const requestedFileName = String(body.fileName || '').trim();
+    const syncProductId = Number(body.syncProductId || 0);
+    const syncResultKey = String(body.syncResultKey || '').trim();
+    const sourceChecksum = String(body.sourceChecksum || '').trim().toLowerCase();
 
     if (!projectId || !settingId || !dataUrl || !namespace) {
       return NextResponse.json(
@@ -83,6 +89,9 @@ export async function POST(req: Request) {
         settingId,
         namespace,
         filename: finalFileName,
+        ...(syncProductId > 0 ? { syncProductId } : {}),
+        ...(syncResultKey ? { syncResultKey } : {}),
+        ...(sourceChecksum ? { sourceChecksum } : {}),
       },
     });
 

@@ -10,6 +10,7 @@ import {
   clearBinaryAssetsByNamespace,
   ensureInitialDatabaseCompaction,
   hasDatabaseConnection,
+  readBinaryAssetById,
   readJsonValue,
   writeJsonValue,
   writeBinaryAsset,
@@ -22,6 +23,9 @@ type GeneratedResult = {
   pose: string;
   color: string;
   url: string;
+  sourceChecksum?: string;
+  sourceProductId?: number;
+  sourceResultKey?: string;
 };
 
 type SyncRequest = {
@@ -183,6 +187,77 @@ function resolveProvidedImageUrl(baseUrl: string, value: string) {
   }
 
   return `${baseUrl}/${trimmed.replace(/^\/+/, '')}`;
+}
+
+function extractPublicImageAssetIdFromUrl(baseUrl: string, value: string) {
+  try {
+    const parsedUrl = new URL(value, baseUrl);
+    const pathParts = parsedUrl.pathname.split('/').filter(Boolean);
+
+    if (pathParts.length < 3) {
+      return null;
+    }
+
+    if (pathParts[0] !== 'api' || pathParts[1] !== 'public-image') {
+      return null;
+    }
+
+    return decodeURIComponent(pathParts[2]);
+  } catch {
+    return null;
+  }
+}
+
+async function validateUploadedResultOwnership(
+  baseUrl: string,
+  productId: number,
+  result: GeneratedResult
+) {
+  if (!hasDatabaseConnection()) {
+    return;
+  }
+
+  const assetId = extractPublicImageAssetIdFromUrl(baseUrl, result.url);
+  if (!assetId) {
+    return;
+  }
+
+  const asset = await readBinaryAssetById(assetId);
+  if (!asset) {
+    throw new Error(
+      `Asset immagine non trovato (${result.pose} ${result.color}). Riprova il caricamento prima della sync.`
+    );
+  }
+
+  const metadata = asset.metadata || {};
+  const metadataProductId = Number(metadata.syncProductId || 0);
+  const metadataResultKey = String(metadata.syncResultKey || '').trim();
+  const metadataChecksum = String(metadata.sourceChecksum || '')
+    .trim()
+    .toLowerCase();
+  const expectedProductId = Number(result.sourceProductId || productId);
+  const expectedResultKey = String(result.sourceResultKey || result.key).trim();
+  const expectedChecksum = String(result.sourceChecksum || '')
+    .trim()
+    .toLowerCase();
+
+  if (metadataProductId > 0 && metadataProductId !== expectedProductId) {
+    throw new Error(
+      `Mismatch asset/prodotto rilevato (${result.pose} ${result.color}): asset di prodotto ${metadataProductId}, sync richiesta per prodotto ${expectedProductId}.`
+    );
+  }
+
+  if (metadataResultKey && metadataResultKey !== expectedResultKey) {
+    throw new Error(
+      `Mismatch asset/resultKey rilevato (${result.pose} ${result.color}): atteso ${expectedResultKey}, trovato ${metadataResultKey}.`
+    );
+  }
+
+  if (expectedChecksum && metadataChecksum && metadataChecksum !== expectedChecksum) {
+    throw new Error(
+      `Checksum immagine non coerente per ${result.pose} ${result.color}. Ricarica l'immagine e ripeti la sincronizzazione.`
+    );
+  }
 }
 
 function normalizeColor(value: string) {
@@ -602,8 +677,19 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
     await updateJob(jobId, {
       status: 'running',
       progress: 10,
-      phase: 'Esporto immagini',
+      phase: 'Verifico coerenza asset',
       message: null,
+    });
+
+    await Promise.all(
+      body.generatedResults.map((result) =>
+        validateUploadedResultOwnership(publicBaseUrl, body.productId, result)
+      )
+    );
+
+    await updateJob(jobId, {
+      progress: 22,
+      phase: 'Esporto immagini',
     });
 
     const syncedImageUrls = new Map<string, string>();
@@ -687,7 +773,7 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
     const variationsEndpoint = `${cleanUrl}/wp-json/wc/v3/products/${body.productId}/variations?per_page=100&${authQuery}`;
 
     await updateJob(jobId, {
-      progress: 35,
+      progress: 38,
       phase: 'Leggo prodotto e varianti',
     });
 
@@ -888,7 +974,7 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
     ];
 
     await updateJob(jobId, {
-      progress: 60,
+      progress: 72,
       phase: 'Aggiorno galleria e testi prodotto',
     });
 
@@ -938,7 +1024,7 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
     }
 
     await updateJob(jobId, {
-      progress: 78,
+      progress: 88,
       phase: 'Aggiorno varianti colore',
     });
 
@@ -979,7 +1065,7 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
 
       const variationProgress = Math.min(
         95,
-        78 + Math.round(((index + 1) / Math.max(variations.length, 1)) * 17)
+        88 + Math.round(((index + 1) / Math.max(variations.length, 1)) * 7)
       );
       await updateJob(jobId, {
         progress: variationProgress,

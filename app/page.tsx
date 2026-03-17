@@ -511,89 +511,60 @@ async function listGeneratedProductIdsFromDb(projectId: string) {
   });
 }
 
-function getDataUrlByteSize(dataUrl: string) {
-  const base64 = dataUrl.split(',')[1] || '';
-  const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
-  return Math.floor((base64.length * 3) / 4) - padding;
+function parseDataUrl(dataUrl: string) {
+  const match = String(dataUrl || '').match(/^data:(.+?);base64,(.+)$/);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    mimeType: match[1],
+    base64: match[2],
+  };
 }
 
 function loadBrowserImage(src: string) {
   return new Promise<HTMLImageElement>((resolve, reject) => {
     const image = new window.Image();
     image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("Impossibile ottimizzare l'immagine generata."));
+    image.onerror = () => reject(new Error("Impossibile leggere l'immagine."));
     image.src = src;
   });
 }
 
-async function optimizeGeneratedImage(dataUrl: string, maxBytes = 2_400_000) {
-  if (!dataUrl.startsWith('data:image/')) {
-    return dataUrl;
-  }
-
-  const sourceImage = await loadBrowserImage(dataUrl);
-  const canvas = document.createElement('canvas');
-  const context = canvas.getContext('2d');
-
-  if (!context) {
-    return dataUrl;
-  }
-
-  let width = sourceImage.naturalWidth;
-  let height = sourceImage.naturalHeight;
-  const maxDimension = 2400;
-
-  if (Math.max(width, height) > maxDimension) {
-    const ratio = maxDimension / Math.max(width, height);
-    width = Math.max(1, Math.round(width * ratio));
-    height = Math.max(1, Math.round(height * ratio));
-  }
-
-  let bestCandidate = dataUrl;
-  const preferredMimeType = 'image/webp';
-
-  for (let scaleAttempt = 0; scaleAttempt < 6; scaleAttempt += 1) {
-    canvas.width = width;
-    canvas.height = height;
-    context.clearRect(0, 0, width, height);
-    context.drawImage(sourceImage, 0, 0, width, height);
-
-    for (const quality of [0.96, 0.92, 0.88, 0.84, 0.8, 0.74]) {
-      const candidate = canvas.toDataURL(preferredMimeType, quality);
-      bestCandidate = candidate;
-
-      if (getDataUrlByteSize(candidate) <= maxBytes) {
-        return candidate;
-      }
-    }
-
-    width = Math.max(1, Math.round(width * 0.88));
-    height = Math.max(1, Math.round(height * 0.88));
-  }
-
-  return bestCandidate;
+function getDataUrlFileExtension(mimeType: string) {
+  if (mimeType.includes('jpeg')) return 'jpg';
+  if (mimeType.includes('webp')) return 'webp';
+  if (mimeType.includes('gif')) return 'gif';
+  return 'png';
 }
 
-async function convertImageToJpegForWooSync(dataUrl: string) {
-  if (!dataUrl.startsWith('data:image/')) {
-    return dataUrl;
+async function computeDataUrlSha256(dataUrl: string) {
+  const parsed = parseDataUrl(dataUrl);
+
+  if (!parsed) {
+    return '';
   }
 
-  const sourceImage = await loadBrowserImage(dataUrl);
-  const canvas = document.createElement('canvas');
-  const context = canvas.getContext('2d');
+  const binary = window.atob(parsed.base64);
+  const bytes = new Uint8Array(binary.length);
 
-  if (!context) {
-    return dataUrl;
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
   }
 
-  canvas.width = sourceImage.naturalWidth;
-  canvas.height = sourceImage.naturalHeight;
-  context.fillStyle = '#ffffff';
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  context.drawImage(sourceImage, 0, 0, canvas.width, canvas.height);
+  const digest = await window.crypto.subtle.digest('SHA-256', bytes);
+  const hashBytes = new Uint8Array(digest);
 
-  return canvas.toDataURL('image/jpeg', 0.94);
+  return Array.from(hashBytes)
+    .map((value) => value.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+async function prepareGeneratedImageForStorage(dataUrl: string) {
+  // Keep master output untouched to preserve maximum visual fidelity.
+  // Any optimization should happen only in frontend delivery layers.
+  return dataUrl;
 }
 
 async function uploadWooSyncImageReference(
@@ -601,11 +572,14 @@ async function uploadWooSyncImageReference(
   productId: number,
   resultKey: string,
   result: GeneratedResult,
-  dataUrl: string
+  dataUrl: string,
+  sourceChecksum: string
 ) {
   if (!dataUrl.startsWith('data:image/')) {
     return dataUrl;
   }
+  const parsedDataUrl = parseDataUrl(dataUrl);
+  const extension = parsedDataUrl ? getDataUrlFileExtension(parsedDataUrl.mimeType) : 'png';
 
   const response = await fetch('/api/settings/reference-image', {
     method: 'POST',
@@ -619,27 +593,30 @@ async function uploadWooSyncImageReference(
       // wrong image.
       settingId: `${productId}_${resultKey}`,
       namespace: 'woo-sync-client',
-      fileName: `${result.key}-${result.color}-${result.pose}.jpg`,
+      fileName: `${result.key}-${result.color}-${result.pose}.${extension}`,
       dataUrl,
+      syncProductId: productId,
+      syncResultKey: resultKey,
+      sourceChecksum,
     }),
   });
 
   const rawBody = await response.text();
-  let parsed: { url?: string; error?: string } = {};
+  let parsedResponse: { url?: string; error?: string } = {};
 
   if (rawBody) {
     try {
-      parsed = JSON.parse(rawBody) as { url?: string; error?: string };
+      parsedResponse = JSON.parse(rawBody) as { url?: string; error?: string };
     } catch {
       throw new Error(rawBody.slice(0, 240));
     }
   }
 
   if (!response.ok) {
-    throw new Error(parsed.error || 'Upload temporaneo immagini per WooCommerce fallito.');
+    throw new Error(parsedResponse.error || 'Upload temporaneo immagini per WooCommerce fallito.');
   }
 
-  return parsed.url || dataUrl;
+  return parsedResponse.url || dataUrl;
 }
 
 async function createTinySessionThumbnail(dataUrl: string) {
@@ -3050,16 +3027,24 @@ export default function Home() {
 
     try {
       const syncReadyResults = await Promise.all(
-        syncResults.map(async (result) => ({
-          ...result,
-          url: await uploadWooSyncImageReference(
-            projectId,
-            selectedProduct.id,
-            result.key,
-            result,
-            await convertImageToJpegForWooSync(result.url)
-          ),
-        }))
+        syncResults.map(async (result) => {
+          const sourceChecksum = await computeDataUrlSha256(result.url);
+
+          return {
+            ...result,
+            url: await uploadWooSyncImageReference(
+              projectId,
+              selectedProduct.id,
+              result.key,
+              result,
+              result.url,
+              sourceChecksum
+            ),
+            sourceChecksum,
+            sourceProductId: selectedProduct.id,
+            sourceResultKey: result.key,
+          };
+        })
       );
 
       applyVisualStep();
@@ -3552,8 +3537,8 @@ export default function Home() {
       throw new Error(data.error || `Errore generazione immagini (${response.status}).`);
     }
 
-    const optimizedUrl = await optimizeGeneratedImage(`data:image/png;base64,${data.image}`);
-    return { key: args.key, kind: args.kind, pose: args.pose, color: args.targetColor, url: optimizedUrl } satisfies GeneratedResult;
+    const masterDataUrl = await prepareGeneratedImageForStorage(`data:image/png;base64,${data.image}`);
+    return { key: args.key, kind: args.kind, pose: args.pose, color: args.targetColor, url: masterDataUrl } satisfies GeneratedResult;
   };
 
   const startGeneration = async () => {

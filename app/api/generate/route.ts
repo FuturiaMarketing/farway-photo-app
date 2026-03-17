@@ -8,12 +8,27 @@ const geminiFetchTimeoutMs = 70_000;
 const analysisGeminiFetchTimeoutMs = 30_000;
 const validationGeminiFetchTimeoutMs = 12_000;
 const analysisModel = 'gemini-2.5-flash';
+const allowedImageSizes = new Set(['1K', '2K', '4K']);
 const imageGenerationModels = [
   'gemini-2.5-flash-image',
   'gemini-3.1-flash-image-preview',
 ] as const;
 const maxImageGenerationAttempts = 2;
 const maxGenerationReferenceImages = 8;
+
+function resolveGeminiImageSize(value: string | undefined, fallback: '1K' | '2K' | '4K') {
+  const normalized = String(value || '')
+    .trim()
+    .toUpperCase();
+
+  if (allowedImageSizes.has(normalized)) {
+    return normalized as '1K' | '2K' | '4K';
+  }
+
+  return fallback;
+}
+
+const generationImageSize = resolveGeminiImageSize(process.env.GEMINI_IMAGE_SIZE, '2K');
 
 type GeminiPart = {
   text?: string;
@@ -586,6 +601,7 @@ export async function POST(req: Request) {
             ['TEXT', 'IMAGE'],
             {
               aspectRatio: '3:4',
+              imageSize: generationImageSize,
             },
             geminiFetchTimeoutMs
           );

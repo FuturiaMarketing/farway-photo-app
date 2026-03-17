@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "woo:quality:scan": "node scripts/farway-woo-image-quality-retrofit.cjs",
+    "woo:quality:apply": "node scripts/farway-woo-image-quality-retrofit.cjs --apply"
   },
   "dependencies": {
     "@woocommerce/woocommerce-rest-api": "^1.0.2",

@@ -6,6 +6,7 @@ export const maxDuration = 300;
 
 const geminiFetchTimeoutMs = 70_000;
 const validationFetchTimeoutMs = 12_000;
+const allowedImageSizes = new Set(['1K', '2K', '4K']);
 const defaultImageGenerationModels = [
   'gemini-2.5-flash-image',
   'gemini-3.1-flash-image-preview',
@@ -19,6 +20,20 @@ const seamExpectedTolerance = 0.09;
 const seamRowDiffThreshold = 42;
 const seamRowCoverageThreshold = 0.58;
 const modelIdPattern = /^[a-zA-Z0-9][a-zA-Z0-9._-]{1,127}$/;
+
+function resolveGeminiImageSize(value: string | undefined, fallback: '1K' | '2K' | '4K') {
+  const normalized = String(value || '')
+    .trim()
+    .toUpperCase();
+
+  if (allowedImageSizes.has(normalized)) {
+    return normalized as '1K' | '2K' | '4K';
+  }
+
+  return fallback;
+}
+
+const categoryCoverImageSize = resolveGeminiImageSize(process.env.CATEGORY_COVER_IMAGE_SIZE, '2K');
 
 type GeminiPart = {
   text?: string;
@@ -111,6 +126,9 @@ async function callGeminiGenerateContent(
   model: string,
   parts: GeminiRequestPart[],
   responseModalities: Array<'TEXT' | 'IMAGE'>,
+  imageConfig?: {
+    imageSize?: string;
+  },
   timeoutMs = geminiFetchTimeoutMs
 ) {
   const response = await fetchWithTimeout(
@@ -129,6 +147,7 @@ async function callGeminiGenerateContent(
         ],
         generationConfig: {
           responseModalities,
+          ...(imageConfig ? { imageConfig } : {}),
         },
       }),
     },
@@ -274,6 +293,7 @@ async function validateBannerOutpaint(apiKey: string, imageBase64: string, mimeT
         },
       ],
       ['TEXT'],
+      undefined,
       validationFetchTimeoutMs
     );
 
@@ -308,6 +328,7 @@ async function validateNoPanelCollage(apiKey: string, imageBase64: string, mimeT
         },
       ],
       ['TEXT'],
+      undefined,
       validationFetchTimeoutMs
     );
 
@@ -553,7 +574,10 @@ export async function POST(req: Request) {
               ...generationImageParts,
               { text: attemptPrompt },
             ],
-            ['TEXT', 'IMAGE']
+            ['TEXT', 'IMAGE'],
+            {
+              imageSize: categoryCoverImageSize,
+            }
           );
 
           if (!response.ok) {
