@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const fs = require('fs/promises');
 const path = require('path');
+const sharp = require('sharp');
 
 function parseArgs(argv) {
   const args = {
@@ -102,7 +103,12 @@ async function resolveWooSettings() {
 }
 
 function resolveWpCredentials() {
-  const username = String(process.env.WP_API_USERNAME || process.env.WP_USERNAME || '').trim();
+  const username = String(
+    process.env.WP_API_USERNAME ||
+      process.env.WP_USERNAME ||
+      process.env.WP_USER_EMAIL ||
+      ''
+  ).trim();
   const appPassword = String(process.env.WP_APP_PASSWORD || '').trim();
 
   if (!username || !appPassword) {
@@ -181,7 +187,81 @@ function normalizeSrc(src) {
   return String(src || '').trim().replace(/^https?:\/\//i, '').toLowerCase();
 }
 
-function dedupeProductImages(images) {
+const imageResolutionCache = new Map();
+
+function isLikelyAppProductPhotoText(value) {
+  const probe = String(value || '').toLowerCase();
+  const hasProductBrandPattern =
+    probe.includes('di farway milano') || probe.includes('di-farway-milano');
+  const hasProductPosePattern =
+    /\bfront\b|\bback\b|\bside\b|in[-\s]?action|\bhero\b/.test(probe);
+  const looksLikeCategoryCover =
+    probe.includes('cover-archivio') || probe.includes('cover archivio') || probe.includes('category-cover');
+
+  return hasProductBrandPattern && hasProductPosePattern && !looksLikeCategoryCover;
+}
+
+function getFileNameFromUrl(src) {
+  try {
+    const parsed = new URL(String(src || ''));
+    return parsed.pathname.split('/').filter(Boolean).pop() || '';
+  } catch {
+    return '';
+  }
+}
+
+function normalizeAppPhotoLabel(image) {
+  const source = String(image?.name || image?.alt || getFileNameFromUrl(image?.src) || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\.[a-z0-9]{2,5}$/i, '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\bdi farway milano\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return source;
+}
+
+async function probeImageResolution(sourceUrl) {
+  const normalized = normalizeSrc(sourceUrl);
+  if (!normalized) {
+    return { width: 0, height: 0, area: 0, longEdge: 0 };
+  }
+
+  if (imageResolutionCache.has(normalized)) {
+    return imageResolutionCache.get(normalized);
+  }
+
+  const resultPromise = (async () => {
+    try {
+      const response = await fetchWithTimeout(sourceUrl, {}, 45000);
+      if (!response.ok) {
+        return { width: 0, height: 0, area: 0, longEdge: 0 };
+      }
+
+      const bytes = Buffer.from(await response.arrayBuffer());
+      const metadata = await sharp(bytes).metadata();
+      const width = Number(metadata.width || 0);
+      const height = Number(metadata.height || 0);
+
+      return {
+        width,
+        height,
+        area: width * height,
+        longEdge: Math.max(width, height),
+      };
+    } catch {
+      return { width: 0, height: 0, area: 0, longEdge: 0 };
+    }
+  })();
+
+  imageResolutionCache.set(normalized, resultPromise);
+  return resultPromise;
+}
+
+async function dedupeProductImages(images) {
   const seen = new Set();
   const deduped = [];
   const removed = [];
@@ -204,23 +284,146 @@ function dedupeProductImages(images) {
     deduped.push(image);
   }
 
-  return { deduped, removed };
+  const groupByLabel = new Map();
+  for (const image of deduped) {
+    const probe = `${String(image?.name || '')} ${String(image?.alt || '')} ${String(image?.src || '')}`;
+    if (!isLikelyAppProductPhotoText(probe)) {
+      continue;
+    }
+
+    const label = normalizeAppPhotoLabel(image);
+    if (!label) {
+      continue;
+    }
+
+    const current = groupByLabel.get(label) || [];
+    current.push(image);
+    groupByLabel.set(label, current);
+  }
+
+  const semanticRemovals = new Set();
+  for (const [, entries] of groupByLabel.entries()) {
+    if (entries.length <= 1) {
+      continue;
+    }
+
+    const ranked = await Promise.all(
+      entries.map(async (entry, index) => ({
+        entry,
+        index,
+        resolution: await probeImageResolution(entry?.src),
+      }))
+    );
+
+    ranked.sort((a, b) => {
+      if (b.resolution.longEdge !== a.resolution.longEdge) {
+        return b.resolution.longEdge - a.resolution.longEdge;
+      }
+
+      if (b.resolution.area !== a.resolution.area) {
+        return b.resolution.area - a.resolution.area;
+      }
+
+      return a.index - b.index;
+    });
+
+    const winner = ranked[0]?.entry;
+    for (const candidate of ranked.slice(1)) {
+      if (candidate.entry !== winner) {
+        semanticRemovals.add(candidate.entry);
+      }
+    }
+  }
+
+  if (semanticRemovals.size > 0) {
+    for (const image of deduped) {
+      if (semanticRemovals.has(image)) {
+        removed.push(image);
+      }
+    }
+  }
+
+  return {
+    deduped: deduped.filter((image) => !semanticRemovals.has(image)),
+    removed,
+  };
 }
 
-function isLikelyAppPhotoMedia(media) {
+function isLikelyAppProductPhotoMedia(media) {
   const title = String(media?.title?.rendered || '')
     .toLowerCase()
     .replace(/&[^;]+;/g, ' ');
   const alt = String(media?.alt_text || '').toLowerCase();
   const url = String(media?.source_url || '').toLowerCase();
-  const probe = `${title} ${alt} ${url}`;
+  return isLikelyAppProductPhotoText(`${title} ${alt} ${url}`);
+}
 
-  return (
-    probe.includes('farway milano') ||
-    probe.includes('di-farway-milano') ||
-    probe.includes('cover-archivio') ||
-    probe.includes('cover archivio')
-  );
+async function listWordPressRenderableContent(baseUrl, headers) {
+  const allChunks = [];
+  const endpoints = [
+    'posts?status=publish&per_page=100&page=1&_fields=id,content.rendered,excerpt.rendered',
+    'pages?status=publish&per_page=100&page=1&_fields=id,content.rendered,excerpt.rendered',
+  ];
+
+  for (const baseEndpoint of endpoints) {
+    let page = 1;
+
+    while (true) {
+      const endpoint = `${baseUrl}/wp-json/wp/v2/${baseEndpoint.replace('page=1', `page=${page}`)}`;
+      const response = await fetchWithTimeout(endpoint, { headers }, 60000);
+
+      if (response.status === 400) {
+        break;
+      }
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`WP content GET ${endpoint} -> ${response.status}: ${text.slice(0, 240)}`);
+      }
+
+      const list = await response.json();
+      if (!Array.isArray(list) || list.length === 0) {
+        break;
+      }
+
+      for (const item of list) {
+        const rendered = String(item?.content?.rendered || '');
+        const excerpt = String(item?.excerpt?.rendered || '');
+        if (rendered) allChunks.push(rendered.toLowerCase());
+        if (excerpt) allChunks.push(excerpt.toLowerCase());
+      }
+
+      if (list.length < 100) {
+        break;
+      }
+
+      page += 1;
+    }
+  }
+
+  return allChunks.join('\n');
+}
+
+function extractUrlPath(url) {
+  try {
+    return new URL(String(url || '')).pathname.toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+function isReferencedInContent(contentCorpus, sourceUrl) {
+  if (!contentCorpus) {
+    return false;
+  }
+
+  const normalizedUrl = String(sourceUrl || '').toLowerCase();
+  if (normalizedUrl && contentCorpus.includes(normalizedUrl)) {
+    return true;
+  }
+
+  const pathOnly = extractUrlPath(normalizedUrl);
+  return Boolean(pathOnly && contentCorpus.includes(pathOnly));
 }
 
 async function listWordPressMedia(baseUrl, wpCreds) {
@@ -336,7 +539,7 @@ async function main() {
   for (let index = 0; index < products.length; index += 1) {
     const product = products[index];
     const images = Array.isArray(product.images) ? product.images : [];
-    const { deduped, removed } = dedupeProductImages(images);
+    const { deduped, removed } = await dedupeProductImages(images);
 
     for (const image of deduped) {
       const imageId = Number(image?.id || 0);
@@ -419,13 +622,14 @@ async function main() {
     console.log('[cleanup] scan media library WordPress...');
     try {
       const { all: mediaList, headers } = await listWordPressMedia(woo.storeUrl, wpCreds);
+      const contentCorpus = await listWordPressRenderableContent(woo.storeUrl, headers);
       const usedIds = new Set([
         ...Array.from(usedProductImageIds),
         ...Array.from(usedVariationImageIds),
         ...Array.from(usedCategoryImageIds),
       ]);
 
-      const appCandidates = mediaList.filter(isLikelyAppPhotoMedia);
+      const appCandidates = mediaList.filter(isLikelyAppProductPhotoMedia);
       report.summary.appMediaCandidates = appCandidates.length;
 
       const unusedAppMedia = appCandidates.filter((media) => {
@@ -437,6 +641,10 @@ async function main() {
         }
 
         if (normalizedSource && usedSrcs.has(normalizedSource)) {
+          return false;
+        }
+
+        if (isReferencedInContent(contentCorpus, media?.source_url)) {
           return false;
         }
 
