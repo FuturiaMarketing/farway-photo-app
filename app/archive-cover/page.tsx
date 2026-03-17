@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import NextImage from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Download, ImagePlus, Loader2, Wand2 } from 'lucide-react';
+import { ArrowLeft, Download, ExternalLink, ImagePlus, Loader2, Upload, Wand2 } from 'lucide-react';
 
 type ProductCategory = {
   id: number;
@@ -43,6 +43,15 @@ function loadImage(dataUrl: string) {
     image.onload = () => resolve(image);
     image.onerror = () => reject(new Error("Impossibile caricare l'immagine sorgente."));
     image.src = dataUrl;
+  });
+}
+
+function blobToDataUrl(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error("Impossibile convertire l'immagine generata."));
+    reader.readAsDataURL(blob);
   });
 }
 
@@ -178,7 +187,11 @@ export default function ArchiveCoverPage() {
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
   const [isLoadingCategories, setIsLoadingCategories] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSyncingWoo, setIsSyncingWoo] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [wooSyncError, setWooSyncError] = useState<string | null>(null);
+  const [wooSyncMessage, setWooSyncMessage] = useState<string | null>(null);
+  const [wooCategoryBackendUrl, setWooCategoryBackendUrl] = useState('');
   const [sourceInfo, setSourceInfo] = useState<{ width: number; height: number } | null>(null);
 
   useEffect(() => {
@@ -236,6 +249,9 @@ export default function ArchiveCoverPage() {
 
   const handleSourceFile = (file: File | null) => {
     setError(null);
+    setWooSyncError(null);
+    setWooSyncMessage(null);
+    setWooCategoryBackendUrl('');
     setGeneratedBlob(null);
 
     if (generatedPreviewUrl) {
@@ -274,6 +290,9 @@ export default function ArchiveCoverPage() {
 
     setIsGenerating(true);
     setError(null);
+    setWooSyncError(null);
+    setWooSyncMessage(null);
+    setWooCategoryBackendUrl('');
 
     try {
       const output = await buildArchiveCover(sourceFile);
@@ -315,6 +334,66 @@ export default function ArchiveCoverPage() {
     anchor.click();
     anchor.remove();
     URL.revokeObjectURL(downloadUrl);
+  };
+
+  const syncCoverToWoo = async () => {
+    if (!generatedBlob) {
+      setWooSyncError('Genera prima la cover da sincronizzare.');
+      return;
+    }
+
+    if (!selectedCategory) {
+      setWooSyncError('Seleziona una categoria prima della sincronizzazione WooCommerce.');
+      return;
+    }
+
+    setIsSyncingWoo(true);
+    setWooSyncError(null);
+    setWooSyncMessage(null);
+    setWooCategoryBackendUrl('');
+
+    try {
+      const imageDataUrl = await blobToDataUrl(generatedBlob);
+      const response = await fetch('/api/sync-category-cover', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          categoryId: selectedCategory.id,
+          categoryName: selectedCategory.name,
+          imageDataUrl,
+        }),
+      });
+
+      const rawBody = await response.text();
+      let payload: {
+        error?: string;
+        message?: string;
+        backendUrl?: string;
+      } = {};
+
+      if (rawBody) {
+        try {
+          payload = JSON.parse(rawBody) as typeof payload;
+        } catch {
+          throw new Error(rawBody.slice(0, 240));
+        }
+      }
+
+      if (!response.ok) {
+        throw new Error(payload.error || `Sincronizzazione Woo fallita (${response.status}).`);
+      }
+
+      setWooSyncMessage(
+        payload.message || `Cover categoria sincronizzata con successo (${selectedCategory.name}).`
+      );
+      setWooCategoryBackendUrl(String(payload.backendUrl || ''));
+    } catch (syncError: unknown) {
+      const message =
+        syncError instanceof Error ? syncError.message : 'Errore sconosciuto durante la sync Woo.';
+      setWooSyncError(message);
+    } finally {
+      setIsSyncingWoo(false);
+    }
   };
 
   return (
@@ -397,6 +476,20 @@ export default function ArchiveCoverPage() {
             </button>
           </div>
 
+          <button
+            type="button"
+            onClick={syncCoverToWoo}
+            disabled={!generatedBlob || !selectedCategory || isSyncingWoo}
+            className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#0F766E] px-4 py-3 text-sm font-black text-white disabled:bg-slate-300"
+          >
+            {isSyncingWoo ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+            {isSyncingWoo ? 'Sync Woo in corso...' : 'Sincronizza cover su WooCommerce'}
+          </button>
+
+          <p className="mt-2 text-xs text-[#4C6583]">
+            La sync Woo e disponibile solo dopo la generazione e con una categoria selezionata.
+          </p>
+
           <div className="mt-3 rounded-xl border border-[#D7D9DD] bg-white p-3 text-xs text-[#4C6583]">
             Nome file: <span className="font-bold text-[#103D66]">{outputFileName}</span>
           </div>
@@ -404,6 +497,28 @@ export default function ArchiveCoverPage() {
           {error && (
             <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-700">
               {error}
+            </div>
+          )}
+
+          {wooSyncError && (
+            <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-700">
+              {wooSyncError}
+            </div>
+          )}
+
+          {wooSyncMessage && (
+            <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-700">
+              <div>{wooSyncMessage}</div>
+              {wooCategoryBackendUrl && (
+                <a
+                  href={wooCategoryBackendUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-2 inline-flex items-center gap-2 text-xs font-black uppercase text-[#0F766E]"
+                >
+                  <ExternalLink size={14} /> Apri categoria nel backend
+                </a>
+              )}
             </div>
           )}
         </section>
