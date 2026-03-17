@@ -1,6 +1,7 @@
 "use client";
 
 import Link from 'next/link';
+import NextImage from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Download, ImagePlus, Loader2, Wand2 } from 'lucide-react';
 
@@ -418,10 +419,12 @@ export default function ArchiveCoverPage() {
               <div className="overflow-hidden rounded-2xl border border-[#D7D9DD] bg-[#F8FAFB] p-3">
                 <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-slate-100">
                   {sourcePreviewUrl ? (
-                    <img
+                    <NextImage
                       src={sourcePreviewUrl}
                       alt="Sorgente caricata"
-                      className="h-full w-full object-contain"
+                      fill
+                      unoptimized
+                      className="object-contain"
                     />
                   ) : (
                     <div className="flex h-full items-center justify-center text-xs font-bold text-slate-400">
@@ -442,10 +445,12 @@ export default function ArchiveCoverPage() {
               <div className="overflow-hidden rounded-2xl border border-[#D7D9DD] bg-[#F8FAFB] p-3">
                 <div className="relative aspect-[24/5] w-full overflow-hidden rounded-xl bg-slate-100">
                   {generatedPreviewUrl ? (
-                    <img
+                    <NextImage
                       src={generatedPreviewUrl}
                       alt="Cover archivio generata"
-                      className="h-full w-full object-cover"
+                      fill
+                      unoptimized
+                      className="object-cover"
                     />
                   ) : (
                     <div className="flex h-full items-center justify-center text-xs font-bold text-slate-400">
