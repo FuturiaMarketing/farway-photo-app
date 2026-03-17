@@ -598,6 +598,7 @@ async function convertImageToJpegForWooSync(dataUrl: string) {
 
 async function uploadWooSyncImageReference(
   projectId: string,
+  productId: number,
   resultKey: string,
   result: GeneratedResult,
   dataUrl: string
@@ -611,7 +612,12 @@ async function uploadWooSyncImageReference(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       projectId,
-      settingId: resultKey,
+      // Include productId in the settingId so each product has its own slot in
+      // woo-sync-client. Without this, two products sharing the same color name
+      // (e.g. "Panna e Avorio") would write to the same DB key and the last one
+      // to run would overwrite the other, causing WooCommerce to receive the
+      // wrong image.
+      settingId: `${productId}_${resultKey}`,
       namespace: 'woo-sync-client',
       fileName: `${result.key}-${result.color}-${result.pose}.jpg`,
       dataUrl,
@@ -3024,6 +3030,7 @@ export default function Home() {
           ...result,
           url: await uploadWooSyncImageReference(
             projectId,
+            selectedProduct.id,
             result.key,
             result,
             await convertImageToJpegForWooSync(result.url)

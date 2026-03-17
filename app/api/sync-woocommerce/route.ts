@@ -870,60 +870,19 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
       ];
     });
 
-    const uniqueAssets = Array.from(
-      new Map(desiredProductImages.map((asset) => [asset.assetKey, asset])).values()
-    );
-    const assetIdByKey = new Map<string, number>();
-
-    // NOTE: We intentionally do NOT reuse existing WooCommerce media IDs by name.
-    // Doing so would cause stale images to be reused when the user regenerates an image
-    // and re-syncs: the old media entry would be matched by name and the new image would
-    // never be uploaded. Always re-uploading guarantees the latest generated image is used.
-    const assetsNeedingUpload = uniqueAssets;
-
-    if (assetsNeedingUpload.length > 0) {
-      await updateJob(jobId, {
-        progress: 50,
-        phase: 'Carico nuovi asset media',
-      });
-
-      const uploadRes = await fetch(productEndpoint, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...preservedProductFields,
-          images: assetsNeedingUpload.map((asset) => ({
-            src: asset.src,
-            name: asset.name,
-            alt: asset.alt,
-          })),
-        }),
-      });
-
-      if (!uploadRes.ok) {
-        const uploadError = await uploadRes.text();
-        throw new Error(`Upload asset WooCommerce fallito: ${uploadRes.status} ${uploadError}`);
-      }
-
-      const uploadedProduct = (await uploadRes.json()) as WooProductResponse;
-
-      for (const asset of assetsNeedingUpload) {
-        const uploadedImage = (uploadedProduct.images || []).find(
-          (image) => image.name === asset.name && typeof image.id === 'number'
-        );
-
-        if (uploadedImage?.id) {
-          assetIdByKey.set(asset.assetKey, uploadedImage.id);
-        }
-      }
-    }
-
+    // Always pass new images as src: URLs so WooCommerce always downloads the latest
+    // generated image in a single atomic PUT. A previous two-step approach (pre-upload
+    // PUT to obtain media IDs, then a second PUT with those IDs) caused two problems:
+    // 1. If the first PUT failed to side-load any image, that image silently dropped
+    //    out of the gallery (intermittent "only some images published" bug).
+    // 2. Between the two PUTs the product gallery was in an incomplete state.
+    // Using src: in the final PUT lets WooCommerce resolve everything in one step.
+    // frontAttachmentByColor is built from updatedProduct.images after this single PUT,
+    // so variant image assignment still works correctly.
     const productImagesPayload = [
-      ...desiredProductImages.map((asset) =>
-        assetIdByKey.has(asset.assetKey)
-          ? { id: assetIdByKey.get(asset.assetKey) }
-          : { src: asset.src, name: asset.name, alt: asset.alt }
-      ),
+      ...Array.from(
+        new Map(desiredProductImages.map((asset) => [asset.assetKey, asset])).values()
+      ).map((asset) => ({ src: asset.src, name: asset.name, alt: asset.alt })),
       ...preservedExistingFrontImages,
       ...existingProductImages,
     ];
