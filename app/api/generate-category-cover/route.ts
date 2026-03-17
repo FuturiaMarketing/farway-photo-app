@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import sharp from 'sharp';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -11,6 +12,12 @@ const imageGenerationModels = [
 ] as const;
 const maxImageGenerationAttempts = 4;
 const minBannerAspectRatio = 4.6;
+const seamSigmaThreshold = 2.8;
+const seamBandMinRatio = 0.2;
+const seamBandMaxRatio = 0.8;
+const seamExpectedTolerance = 0.09;
+const seamRowDiffThreshold = 42;
+const seamRowCoverageThreshold = 0.58;
 
 type GeminiPart = {
   text?: string;
@@ -224,6 +231,7 @@ async function validateBannerOutpaint(apiKey: string, imageBase64: string, mimeT
             '3) subject is full-body, centered, and not cropped;',
             '4) left and right sides contain realistic coherent context;',
             '5) no obvious blurred placeholder bands, no mirrored smears, no flat filler zones.',
+            '6) no hard vertical panel seams and no side-by-side multi-panel layout.',
           ].join(' '),
         },
       ],
@@ -235,6 +243,177 @@ async function validateBannerOutpaint(apiKey: string, imageBase64: string, mimeT
 
     const verdict = getGeminiText(result).toUpperCase();
     return verdict.includes('VALID') && !verdict.includes('INVALID');
+  } catch {
+    return false;
+  }
+}
+
+async function validateNoPanelCollage(apiKey: string, imageBase64: string, mimeType: string) {
+  try {
+    const { response, result } = await callGeminiGenerateContent(
+      apiKey,
+      'gemini-2.5-flash',
+      [
+        {
+          inline_data: {
+            mime_type: mimeType,
+            data: imageBase64,
+          },
+        },
+        {
+          text: [
+            'Inspect the image for panel seams and duplicated side-by-side composition.',
+            'Reply with one word only: PASS or FAIL.',
+            'FAIL if there is ANY sign of: split-screen layout, collage, triptych, multiple adjacent frames,',
+            'hard vertical seams, or duplicated source scene/subject in separate panels.',
+          ].join(' '),
+        },
+      ],
+      ['TEXT'],
+      validationFetchTimeoutMs
+    );
+
+    if (!response.ok) return false;
+
+    const verdict = getGeminiText(result).toUpperCase();
+    return verdict.includes('PASS') && !verdict.includes('FAIL');
+  } catch {
+    return false;
+  }
+}
+
+function getVerticalDiffScore(
+  pixels: Uint8Array,
+  width: number,
+  height: number,
+  channels: number,
+  x: number
+) {
+  const channelCount = Math.min(3, channels);
+  let sum = 0;
+
+  for (let y = 0; y < height; y += 1) {
+    const leftIndex = (y * width + x) * channels;
+    const rightIndex = leftIndex + channels;
+
+    for (let c = 0; c < channelCount; c += 1) {
+      sum += Math.abs(pixels[leftIndex + c] - pixels[rightIndex + c]);
+    }
+  }
+
+  return sum / (height * channelCount);
+}
+
+function getSeamRowCoverage(
+  pixels: Uint8Array,
+  width: number,
+  height: number,
+  channels: number,
+  x: number
+) {
+  const channelCount = Math.min(3, channels);
+  let rowsWithHardEdge = 0;
+
+  for (let y = 0; y < height; y += 1) {
+    const leftIndex = (y * width + x) * channels;
+    const rightIndex = leftIndex + channels;
+    let rowDiff = 0;
+
+    for (let c = 0; c < channelCount; c += 1) {
+      rowDiff += Math.abs(pixels[leftIndex + c] - pixels[rightIndex + c]);
+    }
+
+    if (rowDiff / channelCount >= seamRowDiffThreshold) {
+      rowsWithHardEdge += 1;
+    }
+  }
+
+  return rowsWithHardEdge / height;
+}
+
+function findClosestPeak(peaks: Array<{ index: number; value: number }>, target: number, width: number) {
+  const targetIndex = Math.round(width * target);
+  let bestPeak: { index: number; value: number } | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  for (const peak of peaks) {
+    const distance = Math.abs(peak.index - targetIndex);
+    if (distance < bestDistance) {
+      bestPeak = peak;
+      bestDistance = distance;
+    }
+  }
+
+  if (!bestPeak) return null;
+
+  return {
+    ...bestPeak,
+    distanceRatio: bestDistance / width,
+  };
+}
+
+async function hasTriptychLikeVerticalSeams(imageBase64: string) {
+  try {
+    const imageBuffer = Buffer.from(imageBase64, 'base64');
+    const { data, info } = await sharp(imageBuffer)
+      .removeAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    if (!info.width || !info.height || info.width < 900 || info.height < 220 || info.channels < 3) {
+      return false;
+    }
+
+    const width = info.width;
+    const height = info.height;
+    const channels = info.channels;
+    const diffs: number[] = new Array(width - 1).fill(0);
+
+    for (let x = 0; x < width - 1; x += 1) {
+      diffs[x] = getVerticalDiffScore(data, width, height, channels, x);
+    }
+
+    const mean = diffs.reduce((acc, value) => acc + value, 0) / diffs.length;
+    const variance =
+      diffs.reduce((acc, value) => acc + Math.pow(value - mean, 2), 0) / Math.max(1, diffs.length - 1);
+    const sigma = Math.sqrt(variance);
+    const threshold = mean + sigma * seamSigmaThreshold;
+
+    const peaks: Array<{ index: number; value: number }> = [];
+    for (let x = 1; x < diffs.length - 1; x += 1) {
+      const ratio = x / width;
+      if (ratio < seamBandMinRatio || ratio > seamBandMaxRatio) {
+        continue;
+      }
+
+      const value = diffs[x];
+      if (value >= threshold && value >= diffs[x - 1] && value >= diffs[x + 1]) {
+        peaks.push({ index: x, value });
+      }
+    }
+
+    if (peaks.length < 2) {
+      return false;
+    }
+
+    const leftCandidate = findClosestPeak(peaks, 1 / 3, width);
+    const rightCandidate = findClosestPeak(peaks, 2 / 3, width);
+
+    if (!leftCandidate || !rightCandidate) {
+      return false;
+    }
+
+    if (
+      leftCandidate.distanceRatio > seamExpectedTolerance ||
+      rightCandidate.distanceRatio > seamExpectedTolerance
+    ) {
+      return false;
+    }
+
+    const leftCoverage = getSeamRowCoverage(data, width, height, channels, leftCandidate.index);
+    const rightCoverage = getSeamRowCoverage(data, width, height, channels, rightCandidate.index);
+
+    return leftCoverage >= seamRowCoverageThreshold && rightCoverage >= seamRowCoverageThreshold;
   } catch {
     return false;
   }
@@ -252,7 +431,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Chiave API mancante nel file .env.local.' }, { status: 500 });
     }
 
-    if (!parsedInput) {
+    if (!parsedInput && !parsedSeedInput) {
       return NextResponse.json({ error: 'Immagine sorgente non valida.' }, { status: 400 });
     }
 
@@ -261,7 +440,7 @@ export async function POST(req: Request) {
       : 'Keep the visual language premium and coherent with a fashion e-commerce archive header.';
 
     const prompt = [
-      'Create a premium horizontal archive header image from the provided source image.',
+      'Create a premium horizontal archive header image by outpainting a centered subject.',
       'This is a CONSERVATIVE outpainting task.',
       parsedSeedInput
         ? 'Image 1 is a 1920x400 outpainting template with transparent side areas.'
@@ -278,7 +457,10 @@ export async function POST(req: Request) {
       'The subject must remain whole, centered, and not cropped.',
       'Do not zoom in or cut body parts.',
       'Generate one single coherent high-quality image with editorial-grade realism.',
+      'The result must look like one single camera frame, never multiple frames.',
       'No text, no logo, no watermark, no collage, no split screen.',
+      'Do not duplicate the original image as left/center/right panels.',
+      'Do not create hard vertical seams or panel boundaries.',
       'Do not leave blurred side bands, plain side bars, empty areas, or unresolved placeholder zones.',
       'Keep the composition ready for a very wide category banner, with safe breathing room around the subject.',
       categoryPrompt,
@@ -300,24 +482,31 @@ export async function POST(req: Request) {
 
       for (const model of imageGenerationModels) {
         try {
+          const generationImageParts: GeminiRequestPart[] = parsedSeedInput
+            ? [
+                {
+                  inline_data: {
+                    mime_type: parsedSeedInput.mimeType,
+                    data: parsedSeedInput.data,
+                  },
+                },
+              ]
+            : parsedInput
+              ? [
+                  {
+                    inline_data: {
+                      mime_type: parsedInput.mimeType,
+                      data: parsedInput.data,
+                    },
+                  },
+                ]
+              : [];
+
           const { response, result } = await callGeminiGenerateContent(
             apiKey,
             model,
             [
-              ...(parsedSeedInput
-                ? [{
-                    inline_data: {
-                      mime_type: parsedSeedInput.mimeType,
-                      data: parsedSeedInput.data,
-                    },
-                  } satisfies GeminiRequestPart]
-                : []),
-              {
-                inline_data: {
-                  mime_type: parsedInput.mimeType,
-                  data: parsedInput.data,
-                },
-              },
+              ...generationImageParts,
               { text: attemptPrompt },
             ],
             ['TEXT', 'IMAGE']
@@ -357,16 +546,16 @@ export async function POST(req: Request) {
             continue;
           }
 
-          const isValidBanner = await validateBannerOutpaint(
-            apiKey,
-            imageBase64,
-            detectedMimeType
-          );
+          const [isValidBanner, isNoPanelCollage, hasTriptychSeams] = await Promise.all([
+            validateBannerOutpaint(apiKey, imageBase64, detectedMimeType),
+            validateNoPanelCollage(apiKey, imageBase64, detectedMimeType),
+            hasTriptychLikeVerticalSeams(imageBase64),
+          ]);
 
-          if (!isValidBanner) {
+          if (!isValidBanner || !isNoPanelCollage || hasTriptychSeams) {
             lastGenerationStatus = 500;
             lastGenerationError =
-              'Output AI scartato: estensione laterale non coerente o soggetto non pienamente valido.';
+              'Output AI scartato: rilevata composizione non coerente (collage/seams) o outpainting non valido.';
             continue;
           }
 

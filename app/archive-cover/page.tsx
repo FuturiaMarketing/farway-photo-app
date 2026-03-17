@@ -14,6 +14,9 @@ type ProductCategory = {
 
 const TARGET_WIDTH = 1920;
 const TARGET_HEIGHT = 400;
+const CLIENT_SEAM_SIGMA_THRESHOLD = 2.6;
+const CLIENT_SEAM_ROW_DIFF_THRESHOLD = 40;
+const CLIENT_SEAM_ROW_COVERAGE_THRESHOLD = 0.56;
 
 function slugify(value: string) {
   return String(value || '')
@@ -130,6 +133,141 @@ async function buildOutpaintSeed(sourceDataUrl: string) {
   context.drawImage(sourceImage, subjectX, subjectY, subjectWidth, subjectHeight);
 
   return canvas.toDataURL('image/png');
+}
+
+function getColumnDiff(
+  pixels: Uint8ClampedArray,
+  width: number,
+  height: number,
+  channels: number,
+  x: number
+) {
+  const channelCount = Math.min(3, channels);
+  let sum = 0;
+
+  for (let y = 0; y < height; y += 1) {
+    const leftIndex = (y * width + x) * channels;
+    const rightIndex = leftIndex + channels;
+
+    for (let c = 0; c < channelCount; c += 1) {
+      sum += Math.abs(pixels[leftIndex + c] - pixels[rightIndex + c]);
+    }
+  }
+
+  return sum / (height * channelCount);
+}
+
+function getColumnRowCoverage(
+  pixels: Uint8ClampedArray,
+  width: number,
+  height: number,
+  channels: number,
+  x: number
+) {
+  const channelCount = Math.min(3, channels);
+  let hardRows = 0;
+
+  for (let y = 0; y < height; y += 1) {
+    const leftIndex = (y * width + x) * channels;
+    const rightIndex = leftIndex + channels;
+    let rowDiff = 0;
+
+    for (let c = 0; c < channelCount; c += 1) {
+      rowDiff += Math.abs(pixels[leftIndex + c] - pixels[rightIndex + c]);
+    }
+
+    if (rowDiff / channelCount >= CLIENT_SEAM_ROW_DIFF_THRESHOLD) {
+      hardRows += 1;
+    }
+  }
+
+  return hardRows / height;
+}
+
+function findClosestIndex(indices: number[], target: number) {
+  let bestIndex = -1;
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  for (const value of indices) {
+    const distance = Math.abs(value - target);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestIndex = value;
+    }
+  }
+
+  return { bestIndex, bestDistance };
+}
+
+async function hasTriptychLikeSeamsInBrowser(generatedDataUrl: string) {
+  const image = await loadImage(generatedDataUrl);
+  const sampledWidth = 960;
+  const sampledHeight = Math.max(180, Math.round((image.naturalHeight / image.naturalWidth) * sampledWidth));
+  const canvas = document.createElement('canvas');
+  canvas.width = sampledWidth;
+  canvas.height = sampledHeight;
+
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  if (!context) return false;
+
+  context.drawImage(image, 0, 0, sampledWidth, sampledHeight);
+  const imageData = context.getImageData(0, 0, sampledWidth, sampledHeight);
+  const pixels = imageData.data;
+  const channels = 4;
+  const diffs: number[] = new Array(sampledWidth - 1).fill(0);
+
+  for (let x = 0; x < sampledWidth - 1; x += 1) {
+    diffs[x] = getColumnDiff(pixels, sampledWidth, sampledHeight, channels, x);
+  }
+
+  const mean = diffs.reduce((acc, value) => acc + value, 0) / diffs.length;
+  const variance =
+    diffs.reduce((acc, value) => acc + Math.pow(value - mean, 2), 0) / Math.max(1, diffs.length - 1);
+  const sigma = Math.sqrt(variance);
+  const threshold = mean + sigma * CLIENT_SEAM_SIGMA_THRESHOLD;
+
+  const candidateIndices: number[] = [];
+  for (let x = 1; x < diffs.length - 1; x += 1) {
+    const ratio = x / sampledWidth;
+    if (ratio < 0.2 || ratio > 0.8) continue;
+    if (diffs[x] >= threshold && diffs[x] >= diffs[x - 1] && diffs[x] >= diffs[x + 1]) {
+      candidateIndices.push(x);
+    }
+  }
+
+  if (candidateIndices.length < 2) {
+    return false;
+  }
+
+  const leftTarget = sampledWidth / 3;
+  const rightTarget = (sampledWidth * 2) / 3;
+  const left = findClosestIndex(candidateIndices, leftTarget);
+  const right = findClosestIndex(candidateIndices, rightTarget);
+  const tolerance = sampledWidth * 0.09;
+
+  if (left.bestIndex < 0 || right.bestIndex < 0 || left.bestDistance > tolerance || right.bestDistance > tolerance) {
+    return false;
+  }
+
+  const leftCoverage = getColumnRowCoverage(
+    pixels,
+    sampledWidth,
+    sampledHeight,
+    channels,
+    left.bestIndex
+  );
+  const rightCoverage = getColumnRowCoverage(
+    pixels,
+    sampledWidth,
+    sampledHeight,
+    channels,
+    right.bestIndex
+  );
+
+  return (
+    leftCoverage >= CLIENT_SEAM_ROW_COVERAGE_THRESHOLD &&
+    rightCoverage >= CLIENT_SEAM_ROW_COVERAGE_THRESHOLD
+  );
 }
 
 export default function ArchiveCoverPage() {
@@ -288,6 +426,11 @@ export default function ArchiveCoverPage() {
         throw new Error(
           `Output AI non valido: banner troppo stretto (${generatedImage.naturalWidth}x${generatedImage.naturalHeight}).`
         );
+      }
+
+      const hasTriptychSeams = await hasTriptychLikeSeamsInBrowser(generatedDataUrl);
+      if (hasTriptychSeams) {
+        throw new Error('Output AI scartato: rilevati pannelli affiancati invece di outpainting continuo.');
       }
 
       const output = await normalizeCoverToTarget(generatedDataUrl);
