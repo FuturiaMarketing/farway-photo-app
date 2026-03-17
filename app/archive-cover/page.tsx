@@ -69,21 +69,8 @@ async function normalizeCoverToTarget(generatedDataUrl: string) {
 
   const sourceWidth = sourceImage.naturalWidth;
   const sourceHeight = sourceImage.naturalHeight;
-  // Keep subject fully visible: never crop the generated frame, only contain.
-  const backgroundScale = Math.max(TARGET_WIDTH / sourceWidth, TARGET_HEIGHT / sourceHeight);
-  const backgroundWidth = sourceWidth * backgroundScale;
-  const backgroundHeight = sourceHeight * backgroundScale;
-  const backgroundX = (TARGET_WIDTH - backgroundWidth) / 2;
-  const backgroundY = (TARGET_HEIGHT - backgroundHeight) / 2;
-
-  context.save();
-  context.filter = 'blur(24px)';
-  context.drawImage(sourceImage, backgroundX, backgroundY, backgroundWidth, backgroundHeight);
-  context.restore();
-  context.fillStyle = 'rgba(255,255,255,0.06)';
-  context.fillRect(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
-
-  const scale = Math.min(TARGET_WIDTH / sourceWidth, TARGET_HEIGHT / sourceHeight);
+  // The AI already produced an outpainted scene; here we only normalize to exact output size.
+  const scale = Math.max(TARGET_WIDTH / sourceWidth, TARGET_HEIGHT / sourceHeight);
   const drawWidth = sourceWidth * scale;
   const drawHeight = sourceHeight * scale;
   const drawX = (TARGET_WIDTH - drawWidth) / 2;
@@ -129,20 +116,12 @@ async function buildOutpaintSeed(sourceDataUrl: string) {
   const sourceWidth = sourceImage.naturalWidth;
   const sourceHeight = sourceImage.naturalHeight;
 
-  const backgroundScale = Math.max(TARGET_WIDTH / sourceWidth, TARGET_HEIGHT / sourceHeight);
-  const backgroundWidth = sourceWidth * backgroundScale;
-  const backgroundHeight = sourceHeight * backgroundScale;
-  const backgroundX = (TARGET_WIDTH - backgroundWidth) / 2;
-  const backgroundY = (TARGET_HEIGHT - backgroundHeight) / 2;
+  context.clearRect(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
 
-  context.save();
-  context.filter = 'blur(28px)';
-  context.drawImage(sourceImage, backgroundX, backgroundY, backgroundWidth, backgroundHeight);
-  context.restore();
-  context.fillStyle = 'rgba(255,255,255,0.08)';
-  context.fillRect(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
-
-  const subjectScale = Math.min((TARGET_HEIGHT * 0.94) / sourceHeight, (TARGET_WIDTH * 0.42) / sourceWidth);
+  const subjectScale = Math.min(
+    (TARGET_HEIGHT * 0.94) / sourceHeight,
+    (TARGET_WIDTH * 0.36) / sourceWidth
+  );
   const subjectWidth = sourceWidth * subjectScale;
   const subjectHeight = sourceHeight * subjectScale;
   const subjectX = (TARGET_WIDTH - subjectWidth) / 2;
@@ -150,7 +129,7 @@ async function buildOutpaintSeed(sourceDataUrl: string) {
 
   context.drawImage(sourceImage, subjectX, subjectY, subjectWidth, subjectHeight);
 
-  return canvas.toDataURL('image/jpeg', 0.92);
+  return canvas.toDataURL('image/png');
 }
 
 export default function ArchiveCoverPage() {
@@ -302,6 +281,15 @@ export default function ArchiveCoverPage() {
       }
 
       const generatedDataUrl = `data:${payload.mimeType || 'image/png'};base64,${payload.image}`;
+      const generatedImage = await loadImage(generatedDataUrl);
+      const generatedAspectRatio = generatedImage.naturalWidth / generatedImage.naturalHeight;
+
+      if (generatedAspectRatio < 4.6) {
+        throw new Error(
+          `Output AI non valido: banner troppo stretto (${generatedImage.naturalWidth}x${generatedImage.naturalHeight}).`
+        );
+      }
+
       const output = await normalizeCoverToTarget(generatedDataUrl);
 
       setSourceInfo({

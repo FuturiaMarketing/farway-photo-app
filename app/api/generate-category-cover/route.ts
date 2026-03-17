@@ -4,11 +4,13 @@ export const runtime = 'nodejs';
 export const maxDuration = 300;
 
 const geminiFetchTimeoutMs = 70_000;
+const validationFetchTimeoutMs = 12_000;
 const imageGenerationModels = [
   'gemini-2.5-flash-image',
   'gemini-3.1-flash-image-preview',
 ] as const;
-const maxImageGenerationAttempts = 2;
+const maxImageGenerationAttempts = 4;
+const minBannerAspectRatio = 4.6;
 
 type GeminiPart = {
   text?: string;
@@ -100,7 +102,8 @@ async function callGeminiGenerateContent(
   apiKey: string,
   model: string,
   parts: GeminiRequestPart[],
-  responseModalities: Array<'TEXT' | 'IMAGE'>
+  responseModalities: Array<'TEXT' | 'IMAGE'>,
+  timeoutMs = geminiFetchTimeoutMs
 ) {
   const response = await fetchWithTimeout(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
@@ -121,7 +124,7 @@ async function callGeminiGenerateContent(
         },
       }),
     },
-    geminiFetchTimeoutMs,
+    timeoutMs,
     `Timeout durante la chiamata a Gemini (${model}).`
   );
 
@@ -145,6 +148,97 @@ type GenerateCategoryCoverRequest = {
   seedImageDataUrl?: string;
   categoryName?: string;
 };
+
+function detectMimeTypeFromBase64(base64: string) {
+  if (base64.startsWith('/9j/')) return 'image/jpeg';
+  if (base64.startsWith('iVBORw0KGgo')) return 'image/png';
+  if (base64.startsWith('UklGR')) return 'image/webp';
+  return 'image/png';
+}
+
+function getImageDimensions(base64: string, mimeType: string) {
+  const bytes = Buffer.from(base64, 'base64');
+
+  if (mimeType.includes('png')) {
+    if (bytes.length < 24) return null;
+    const width = bytes.readUInt32BE(16);
+    const height = bytes.readUInt32BE(20);
+    return width > 0 && height > 0 ? { width, height } : null;
+  }
+
+  if (mimeType.includes('jpeg') || mimeType.includes('jpg')) {
+    if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return null;
+    let offset = 2;
+
+    while (offset + 9 < bytes.length) {
+      if (bytes[offset] !== 0xff) {
+        offset += 1;
+        continue;
+      }
+
+      const marker = bytes[offset + 1];
+      if (marker === 0xd9 || marker === 0xda) break;
+      if (offset + 3 >= bytes.length) break;
+
+      const blockLength = bytes.readUInt16BE(offset + 2);
+      if (blockLength < 2 || offset + 2 + blockLength > bytes.length) break;
+
+      const isSofMarker =
+        (marker >= 0xc0 && marker <= 0xc3) ||
+        (marker >= 0xc5 && marker <= 0xc7) ||
+        (marker >= 0xc9 && marker <= 0xcb) ||
+        (marker >= 0xcd && marker <= 0xcf);
+
+      if (isSofMarker && offset + 8 < bytes.length) {
+        const height = bytes.readUInt16BE(offset + 5);
+        const width = bytes.readUInt16BE(offset + 7);
+        return width > 0 && height > 0 ? { width, height } : null;
+      }
+
+      offset += 2 + blockLength;
+    }
+  }
+
+  return null;
+}
+
+async function validateBannerOutpaint(apiKey: string, imageBase64: string, mimeType: string) {
+  try {
+    const { response, result } = await callGeminiGenerateContent(
+      apiKey,
+      'gemini-2.5-flash',
+      [
+        {
+          inline_data: {
+            mime_type: mimeType,
+            data: imageBase64,
+          },
+        },
+        {
+          text: [
+            'Evaluate this image as a category archive banner.',
+            'Reply with one word only: VALID or INVALID.',
+            'VALID only if all conditions are true:',
+            '1) very wide horizontal banner composition;',
+            '2) one single coherent scene;',
+            '3) subject is full-body, centered, and not cropped;',
+            '4) left and right sides contain realistic coherent context;',
+            '5) no obvious blurred placeholder bands, no mirrored smears, no flat filler zones.',
+          ].join(' '),
+        },
+      ],
+      ['TEXT'],
+      validationFetchTimeoutMs
+    );
+
+    if (!response.ok) return false;
+
+    const verdict = getGeminiText(result).toUpperCase();
+    return verdict.includes('VALID') && !verdict.includes('INVALID');
+  } catch {
+    return false;
+  }
+}
 
 export async function POST(req: Request) {
   try {
@@ -170,10 +264,13 @@ export async function POST(req: Request) {
       'Create a premium horizontal archive header image from the provided source image.',
       'This is a CONSERVATIVE outpainting task.',
       parsedSeedInput
-        ? 'Image 1 is a 1920x400 framing seed. Keep the same framing logic and banner feeling.'
+        ? 'Image 1 is a 1920x400 outpainting template with transparent side areas.'
         : '',
       parsedSeedInput
-        ? 'Treat Image 1 center as protected: keep subject full body, centered, and visually intact.'
+        ? 'Treat Image 1 center area as protected: keep the subject full body, centered, and visually intact.'
+        : '',
+      parsedSeedInput
+        ? 'The transparent side areas in Image 1 must be fully completed with detailed realistic context.'
         : '',
       'Expand the scene naturally on the left and right sides with realistic context.',
       'Do not stretch, warp, duplicate, mirror, or deform the source subject.',
@@ -182,6 +279,7 @@ export async function POST(req: Request) {
       'Do not zoom in or cut body parts.',
       'Generate one single coherent high-quality image with editorial-grade realism.',
       'No text, no logo, no watermark, no collage, no split screen.',
+      'Do not leave blurred side bands, plain side bars, empty areas, or unresolved placeholder zones.',
       'Keep the composition ready for a very wide category banner, with safe breathing room around the subject.',
       categoryPrompt,
     ].join(' ');
@@ -242,6 +340,36 @@ export async function POST(req: Request) {
             continue;
           }
 
+          const detectedMimeType = detectMimeTypeFromBase64(imageBase64);
+          const dimensions = getImageDimensions(imageBase64, detectedMimeType);
+
+          if (!dimensions) {
+            lastGenerationStatus = 500;
+            lastGenerationError = 'Output immagine non valido (dimensioni non leggibili).';
+            continue;
+          }
+
+          const aspectRatio = dimensions.width / dimensions.height;
+          if (aspectRatio < minBannerAspectRatio) {
+            lastGenerationStatus = 500;
+            lastGenerationError =
+              `Output non abbastanza orizzontale (${dimensions.width}x${dimensions.height}).`;
+            continue;
+          }
+
+          const isValidBanner = await validateBannerOutpaint(
+            apiKey,
+            imageBase64,
+            detectedMimeType
+          );
+
+          if (!isValidBanner) {
+            lastGenerationStatus = 500;
+            lastGenerationError =
+              'Output AI scartato: estensione laterale non coerente o soggetto non pienamente valido.';
+            continue;
+          }
+
           generatedImageBase64 = imageBase64;
           break generationLoop;
         } catch (error: unknown) {
@@ -261,7 +389,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       image: generatedImageBase64,
-      mimeType: 'image/png',
+      mimeType: detectMimeTypeFromBase64(generatedImageBase64),
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Errore sconosciuto';
