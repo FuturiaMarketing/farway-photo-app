@@ -6,7 +6,7 @@ export const maxDuration = 300;
 
 const geminiFetchTimeoutMs = 70_000;
 const validationFetchTimeoutMs = 12_000;
-const imageGenerationModels = [
+const defaultImageGenerationModels = [
   'gemini-2.5-flash-image',
   'gemini-3.1-flash-image-preview',
 ] as const;
@@ -18,6 +18,7 @@ const seamBandMaxRatio = 0.8;
 const seamExpectedTolerance = 0.09;
 const seamRowDiffThreshold = 42;
 const seamRowCoverageThreshold = 0.58;
+const modelIdPattern = /^[a-zA-Z0-9][a-zA-Z0-9._-]{1,127}$/;
 
 type GeminiPart = {
   text?: string;
@@ -154,7 +155,44 @@ type GenerateCategoryCoverRequest = {
   imageDataUrl?: string;
   seedImageDataUrl?: string;
   categoryName?: string;
+  modelOverride?: string;
 };
+
+function sanitizeModelId(model: string) {
+  return String(model || '').trim();
+}
+
+function parseModelList(rawValue: string) {
+  return String(rawValue || '')
+    .split(',')
+    .map((value) => sanitizeModelId(value))
+    .filter((value) => modelIdPattern.test(value));
+}
+
+function resolveImageGenerationModels(modelOverride: string) {
+  const resolvedModels: string[] = [];
+  const seenModels = new Set<string>();
+
+  const pushUniqueModel = (model: string) => {
+    const normalizedModel = sanitizeModelId(model);
+    if (!modelIdPattern.test(normalizedModel) || seenModels.has(normalizedModel)) {
+      return;
+    }
+
+    seenModels.add(normalizedModel);
+    resolvedModels.push(normalizedModel);
+  };
+
+  pushUniqueModel(modelOverride);
+  for (const modelFromEnv of parseModelList(process.env.CATEGORY_COVER_IMAGE_MODELS || '')) {
+    pushUniqueModel(modelFromEnv);
+  }
+  for (const defaultModel of defaultImageGenerationModels) {
+    pushUniqueModel(defaultModel);
+  }
+
+  return resolvedModels;
+}
 
 function detectMimeTypeFromBase64(base64: string) {
   if (base64.startsWith('/9j/')) return 'image/jpeg';
@@ -426,6 +464,8 @@ export async function POST(req: Request) {
     const parsedSeedInput = parseDataUrl(String(body.seedImageDataUrl || ''));
     const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || '';
     const categoryName = String(body.categoryName || '').trim();
+    const modelOverride = sanitizeModelId(String(body.modelOverride || ''));
+    const imageGenerationModels = resolveImageGenerationModels(modelOverride);
 
     if (!apiKey) {
       return NextResponse.json({ error: 'Chiave API mancante nel file .env.local.' }, { status: 500 });
@@ -433,6 +473,10 @@ export async function POST(req: Request) {
 
     if (!parsedInput && !parsedSeedInput) {
       return NextResponse.json({ error: 'Immagine sorgente non valida.' }, { status: 400 });
+    }
+
+    if (imageGenerationModels.length === 0) {
+      return NextResponse.json({ error: 'Nessun modello image valido configurato.' }, { status: 500 });
     }
 
     const categoryPrompt = categoryName

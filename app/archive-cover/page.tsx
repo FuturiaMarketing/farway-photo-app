@@ -17,6 +17,16 @@ const TARGET_HEIGHT = 400;
 const CLIENT_SEAM_SIGMA_THRESHOLD = 2.6;
 const CLIENT_SEAM_ROW_DIFF_THRESHOLD = 40;
 const CLIENT_SEAM_ROW_COVERAGE_THRESHOLD = 0.56;
+const CENTER_LOCK_WIDTH_RATIO = 0.36;
+const CENTER_LOCK_HEIGHT_RATIO = 0.94;
+const CENTER_LOCK_EDGE_FEATHER_RATIO = 0.08;
+
+type SubjectPlacement = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
 
 function slugify(value: string) {
   return String(value || '')
@@ -58,7 +68,141 @@ function blobToDataUrl(blob: Blob) {
   });
 }
 
-async function normalizeCoverToTarget(generatedDataUrl: string) {
+function getCenterLockPlacement(sourceWidth: number, sourceHeight: number): SubjectPlacement {
+  const subjectScale = Math.min(
+    (TARGET_HEIGHT * CENTER_LOCK_HEIGHT_RATIO) / sourceHeight,
+    (TARGET_WIDTH * CENTER_LOCK_WIDTH_RATIO) / sourceWidth
+  );
+  const width = sourceWidth * subjectScale;
+  const height = sourceHeight * subjectScale;
+
+  return {
+    x: (TARGET_WIDTH - width) / 2,
+    y: (TARGET_HEIGHT - height) / 2,
+    width,
+    height,
+  };
+}
+
+function clampFeather(placement: SubjectPlacement) {
+  const minSide = Math.min(placement.width, placement.height);
+  const requested = Math.round(minSide * CENTER_LOCK_EDGE_FEATHER_RATIO);
+  const maxAllowed = Math.max(1, Math.floor(minSide / 4));
+  return Math.max(6, Math.min(requested, maxAllowed));
+}
+
+function buildCenterLockMask(
+  context: CanvasRenderingContext2D,
+  placement: SubjectPlacement,
+  feather: number
+) {
+  const innerWidth = Math.max(1, placement.width - feather * 2);
+  const innerHeight = Math.max(1, placement.height - feather * 2);
+
+  context.fillStyle = 'rgba(255,255,255,1)';
+  context.fillRect(placement.x + feather, placement.y + feather, innerWidth, innerHeight);
+
+  const leftGradient = context.createLinearGradient(placement.x, 0, placement.x + feather, 0);
+  leftGradient.addColorStop(0, 'rgba(255,255,255,0)');
+  leftGradient.addColorStop(1, 'rgba(255,255,255,1)');
+  context.fillStyle = leftGradient;
+  context.fillRect(placement.x, placement.y + feather, feather, innerHeight);
+
+  const rightGradient = context.createLinearGradient(
+    placement.x + placement.width - feather,
+    0,
+    placement.x + placement.width,
+    0
+  );
+  rightGradient.addColorStop(0, 'rgba(255,255,255,1)');
+  rightGradient.addColorStop(1, 'rgba(255,255,255,0)');
+  context.fillStyle = rightGradient;
+  context.fillRect(placement.x + placement.width - feather, placement.y + feather, feather, innerHeight);
+
+  const topGradient = context.createLinearGradient(0, placement.y, 0, placement.y + feather);
+  topGradient.addColorStop(0, 'rgba(255,255,255,0)');
+  topGradient.addColorStop(1, 'rgba(255,255,255,1)');
+  context.fillStyle = topGradient;
+  context.fillRect(placement.x + feather, placement.y, innerWidth, feather);
+
+  const bottomGradient = context.createLinearGradient(
+    0,
+    placement.y + placement.height - feather,
+    0,
+    placement.y + placement.height
+  );
+  bottomGradient.addColorStop(0, 'rgba(255,255,255,1)');
+  bottomGradient.addColorStop(1, 'rgba(255,255,255,0)');
+  context.fillStyle = bottomGradient;
+  context.fillRect(
+    placement.x + feather,
+    placement.y + placement.height - feather,
+    innerWidth,
+    feather
+  );
+
+  const topLeftGradient = context.createRadialGradient(
+    placement.x + feather,
+    placement.y + feather,
+    0,
+    placement.x + feather,
+    placement.y + feather,
+    feather
+  );
+  topLeftGradient.addColorStop(0, 'rgba(255,255,255,1)');
+  topLeftGradient.addColorStop(1, 'rgba(255,255,255,0)');
+  context.fillStyle = topLeftGradient;
+  context.fillRect(placement.x, placement.y, feather, feather);
+
+  const topRightGradient = context.createRadialGradient(
+    placement.x + placement.width - feather,
+    placement.y + feather,
+    0,
+    placement.x + placement.width - feather,
+    placement.y + feather,
+    feather
+  );
+  topRightGradient.addColorStop(0, 'rgba(255,255,255,1)');
+  topRightGradient.addColorStop(1, 'rgba(255,255,255,0)');
+  context.fillStyle = topRightGradient;
+  context.fillRect(placement.x + placement.width - feather, placement.y, feather, feather);
+
+  const bottomLeftGradient = context.createRadialGradient(
+    placement.x + feather,
+    placement.y + placement.height - feather,
+    0,
+    placement.x + feather,
+    placement.y + placement.height - feather,
+    feather
+  );
+  bottomLeftGradient.addColorStop(0, 'rgba(255,255,255,1)');
+  bottomLeftGradient.addColorStop(1, 'rgba(255,255,255,0)');
+  context.fillStyle = bottomLeftGradient;
+  context.fillRect(placement.x, placement.y + placement.height - feather, feather, feather);
+
+  const bottomRightGradient = context.createRadialGradient(
+    placement.x + placement.width - feather,
+    placement.y + placement.height - feather,
+    0,
+    placement.x + placement.width - feather,
+    placement.y + placement.height - feather,
+    feather
+  );
+  bottomRightGradient.addColorStop(0, 'rgba(255,255,255,1)');
+  bottomRightGradient.addColorStop(1, 'rgba(255,255,255,0)');
+  context.fillStyle = bottomRightGradient;
+  context.fillRect(
+    placement.x + placement.width - feather,
+    placement.y + placement.height - feather,
+    feather,
+    feather
+  );
+}
+
+async function normalizeCoverToTarget(
+  generatedDataUrl: string,
+  centerLockSourceDataUrl?: string
+) {
   const sourceImage = await loadImage(generatedDataUrl);
   const canvas = document.createElement('canvas');
   canvas.width = TARGET_WIDTH;
@@ -80,6 +224,39 @@ async function normalizeCoverToTarget(generatedDataUrl: string) {
   const drawY = (TARGET_HEIGHT - drawHeight) / 2;
 
   context.drawImage(sourceImage, drawX, drawY, drawWidth, drawHeight);
+
+  if (centerLockSourceDataUrl) {
+    const centerLockSource = await loadImage(centerLockSourceDataUrl);
+    const placement = getCenterLockPlacement(
+      centerLockSource.naturalWidth,
+      centerLockSource.naturalHeight
+    );
+    const feather = clampFeather(placement);
+    const lockLayer = document.createElement('canvas');
+    lockLayer.width = TARGET_WIDTH;
+    lockLayer.height = TARGET_HEIGHT;
+    const lockLayerContext = lockLayer.getContext('2d');
+
+    const maskLayer = document.createElement('canvas');
+    maskLayer.width = TARGET_WIDTH;
+    maskLayer.height = TARGET_HEIGHT;
+    const maskLayerContext = maskLayer.getContext('2d');
+
+    if (lockLayerContext && maskLayerContext) {
+      lockLayerContext.drawImage(
+        centerLockSource,
+        placement.x,
+        placement.y,
+        placement.width,
+        placement.height
+      );
+      buildCenterLockMask(maskLayerContext, placement, feather);
+      lockLayerContext.globalCompositeOperation = 'destination-in';
+      lockLayerContext.drawImage(maskLayer, 0, 0);
+      lockLayerContext.globalCompositeOperation = 'source-over';
+      context.drawImage(lockLayer, 0, 0);
+    }
+  }
 
   const blob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
@@ -121,16 +298,9 @@ async function buildOutpaintSeed(sourceDataUrl: string) {
 
   context.clearRect(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
 
-  const subjectScale = Math.min(
-    (TARGET_HEIGHT * 0.94) / sourceHeight,
-    (TARGET_WIDTH * 0.36) / sourceWidth
-  );
-  const subjectWidth = sourceWidth * subjectScale;
-  const subjectHeight = sourceHeight * subjectScale;
-  const subjectX = (TARGET_WIDTH - subjectWidth) / 2;
-  const subjectY = (TARGET_HEIGHT - subjectHeight) / 2;
+  const placement = getCenterLockPlacement(sourceWidth, sourceHeight);
 
-  context.drawImage(sourceImage, subjectX, subjectY, subjectWidth, subjectHeight);
+  context.drawImage(sourceImage, placement.x, placement.y, placement.width, placement.height);
 
   return canvas.toDataURL('image/png');
 }
@@ -285,6 +455,7 @@ export default function ArchiveCoverPage() {
   const [wooSyncMessage, setWooSyncMessage] = useState<string | null>(null);
   const [wooCategoryBackendUrl, setWooCategoryBackendUrl] = useState('');
   const [sourceInfo, setSourceInfo] = useState<{ width: number; height: number } | null>(null);
+  const [modelOverride, setModelOverride] = useState('');
 
   useEffect(() => {
     const loadCategories = async () => {
@@ -397,6 +568,7 @@ export default function ArchiveCoverPage() {
         body: JSON.stringify({
           imageDataUrl: sourceDataUrl,
           seedImageDataUrl: seedDataUrl,
+          modelOverride: modelOverride.trim() || undefined,
         }),
       });
       const rawBody = await response.text();
@@ -433,7 +605,7 @@ export default function ArchiveCoverPage() {
         throw new Error('Output AI scartato: rilevati pannelli affiancati invece di outpainting continuo.');
       }
 
-      const output = await normalizeCoverToTarget(generatedDataUrl);
+      const output = await normalizeCoverToTarget(generatedDataUrl, sourceDataUrl);
 
       setSourceInfo({
         width: sourceImage.naturalWidth,
@@ -591,7 +763,34 @@ export default function ArchiveCoverPage() {
             <div>Output fisso: 1920x400</div>
             <div>Soggetto centrato</div>
             <div>Estensione orizzontale automatica</div>
+            <div>Centro soggetto bloccato (anti-deformazione)</div>
             <div>Formato output: JPG</div>
+          </div>
+
+          <div className="mt-4">
+            <label
+              htmlFor="archive-cover-model-override"
+              className="mb-2 block text-xs font-black uppercase tracking-wide text-[#4C6583]"
+            >
+              Modello AI (opzionale)
+            </label>
+            <input
+              id="archive-cover-model-override"
+              type="text"
+              list="archive-cover-model-suggestions"
+              value={modelOverride}
+              onChange={(event) => setModelOverride(event.target.value)}
+              placeholder="auto (es. gemini-3.1-flash-image-preview, nanobanana2)"
+              className="w-full rounded-xl border border-[#D7D9DD] bg-white px-3 py-2 text-sm font-bold outline-none"
+            />
+            <datalist id="archive-cover-model-suggestions">
+              <option value="gemini-2.5-flash-image" />
+              <option value="gemini-3.1-flash-image-preview" />
+              <option value="nanobanana2" />
+            </datalist>
+            <p className="mt-2 text-xs text-[#4C6583]">
+              Vuoto = fallback automatico. Se un modello custom fallisce, l&apos;app passa ai fallback.
+            </p>
           </div>
 
           <div className="mt-5 flex gap-2">
