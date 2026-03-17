@@ -4054,10 +4054,10 @@ export default function Home() {
             <Settings size={18} />
           </Link>
           <Link
-            href="/snake"
+            href="/archive-cover"
             className="rounded-xl border border-[#D7D9DD] bg-white px-3 py-2 text-sm font-black text-[#103D66] transition-colors hover:bg-[#EEF1F4]"
           >
-            Snake
+            Cover Categorie
           </Link>
           <button onClick={() => void loadProducts(true)} className="flex items-center gap-2 rounded-xl bg-[#EEF1F4] px-4 py-2 text-sm font-bold">
             <RefreshCw size={16} className={isLoadingProducts ? 'animate-spin' : ''} /> Aggiorna
