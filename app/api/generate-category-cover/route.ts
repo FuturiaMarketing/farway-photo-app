@@ -142,6 +142,7 @@ async function callGeminiGenerateContent(
 
 type GenerateCategoryCoverRequest = {
   imageDataUrl?: string;
+  seedImageDataUrl?: string;
   categoryName?: string;
 };
 
@@ -149,6 +150,7 @@ export async function POST(req: Request) {
   try {
     const body = (await req.json()) as GenerateCategoryCoverRequest;
     const parsedInput = parseDataUrl(String(body.imageDataUrl || ''));
+    const parsedSeedInput = parseDataUrl(String(body.seedImageDataUrl || ''));
     const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || '';
     const categoryName = String(body.categoryName || '').trim();
 
@@ -166,10 +168,18 @@ export async function POST(req: Request) {
 
     const prompt = [
       'Create a premium horizontal archive header image from the provided source image.',
-      'This is an outpainting task: keep the main subject centered and visually coherent with the original source.',
+      'This is a CONSERVATIVE outpainting task.',
+      parsedSeedInput
+        ? 'Image 1 is a 1920x400 framing seed. Keep the same framing logic and banner feeling.'
+        : '',
+      parsedSeedInput
+        ? 'Treat Image 1 center as protected: keep subject full body, centered, and visually intact.'
+        : '',
       'Expand the scene naturally on the left and right sides with realistic context.',
       'Do not stretch, warp, duplicate, mirror, or deform the source subject.',
       'Preserve the original subject identity, garment details, colors, and proportions.',
+      'The subject must remain whole, centered, and not cropped.',
+      'Do not zoom in or cut body parts.',
       'Generate one single coherent high-quality image with editorial-grade realism.',
       'No text, no logo, no watermark, no collage, no split screen.',
       'Keep the composition ready for a very wide category banner, with safe breathing room around the subject.',
@@ -196,6 +206,14 @@ export async function POST(req: Request) {
             apiKey,
             model,
             [
+              ...(parsedSeedInput
+                ? [{
+                    inline_data: {
+                      mime_type: parsedSeedInput.mimeType,
+                      data: parsedSeedInput.data,
+                    },
+                  } satisfies GeminiRequestPart]
+                : []),
               {
                 inline_data: {
                   mime_type: parsedInput.mimeType,

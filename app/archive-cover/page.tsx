@@ -69,8 +69,21 @@ async function normalizeCoverToTarget(generatedDataUrl: string) {
 
   const sourceWidth = sourceImage.naturalWidth;
   const sourceHeight = sourceImage.naturalHeight;
-  // Keep aspect ratio and avoid any deformation: center-crop to exact banner size.
-  const scale = Math.max(TARGET_WIDTH / sourceWidth, TARGET_HEIGHT / sourceHeight);
+  // Keep subject fully visible: never crop the generated frame, only contain.
+  const backgroundScale = Math.max(TARGET_WIDTH / sourceWidth, TARGET_HEIGHT / sourceHeight);
+  const backgroundWidth = sourceWidth * backgroundScale;
+  const backgroundHeight = sourceHeight * backgroundScale;
+  const backgroundX = (TARGET_WIDTH - backgroundWidth) / 2;
+  const backgroundY = (TARGET_HEIGHT - backgroundHeight) / 2;
+
+  context.save();
+  context.filter = 'blur(24px)';
+  context.drawImage(sourceImage, backgroundX, backgroundY, backgroundWidth, backgroundHeight);
+  context.restore();
+  context.fillStyle = 'rgba(255,255,255,0.06)';
+  context.fillRect(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
+
+  const scale = Math.min(TARGET_WIDTH / sourceWidth, TARGET_HEIGHT / sourceHeight);
   const drawWidth = sourceWidth * scale;
   const drawHeight = sourceHeight * scale;
   const drawX = (TARGET_WIDTH - drawWidth) / 2;
@@ -99,6 +112,45 @@ async function normalizeCoverToTarget(generatedDataUrl: string) {
     sourceHeight,
     generatedDataUrl,
   };
+}
+
+async function buildOutpaintSeed(sourceDataUrl: string) {
+  const sourceImage = await loadImage(sourceDataUrl);
+  const canvas = document.createElement('canvas');
+  canvas.width = TARGET_WIDTH;
+  canvas.height = TARGET_HEIGHT;
+
+  const context = canvas.getContext('2d');
+
+  if (!context) {
+    throw new Error('Canvas non disponibile nel browser.');
+  }
+
+  const sourceWidth = sourceImage.naturalWidth;
+  const sourceHeight = sourceImage.naturalHeight;
+
+  const backgroundScale = Math.max(TARGET_WIDTH / sourceWidth, TARGET_HEIGHT / sourceHeight);
+  const backgroundWidth = sourceWidth * backgroundScale;
+  const backgroundHeight = sourceHeight * backgroundScale;
+  const backgroundX = (TARGET_WIDTH - backgroundWidth) / 2;
+  const backgroundY = (TARGET_HEIGHT - backgroundHeight) / 2;
+
+  context.save();
+  context.filter = 'blur(28px)';
+  context.drawImage(sourceImage, backgroundX, backgroundY, backgroundWidth, backgroundHeight);
+  context.restore();
+  context.fillStyle = 'rgba(255,255,255,0.08)';
+  context.fillRect(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
+
+  const subjectScale = Math.min((TARGET_HEIGHT * 0.94) / sourceHeight, (TARGET_WIDTH * 0.42) / sourceWidth);
+  const subjectWidth = sourceWidth * subjectScale;
+  const subjectHeight = sourceHeight * subjectScale;
+  const subjectX = (TARGET_WIDTH - subjectWidth) / 2;
+  const subjectY = (TARGET_HEIGHT - subjectHeight) / 2;
+
+  context.drawImage(sourceImage, subjectX, subjectY, subjectWidth, subjectHeight);
+
+  return canvas.toDataURL('image/jpeg', 0.92);
 }
 
 export default function ArchiveCoverPage() {
@@ -220,11 +272,14 @@ export default function ArchiveCoverPage() {
     try {
       const sourceDataUrl = await readFileAsDataUrl(sourceFile);
       const sourceImage = await loadImage(sourceDataUrl);
+      const seedDataUrl = await buildOutpaintSeed(sourceDataUrl);
+
       const response = await fetch('/api/generate-category-cover', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           imageDataUrl: sourceDataUrl,
+          seedImageDataUrl: seedDataUrl,
         }),
       });
       const rawBody = await response.text();
