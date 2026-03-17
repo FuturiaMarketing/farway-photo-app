@@ -55,9 +55,8 @@ function blobToDataUrl(blob: Blob) {
   });
 }
 
-async function buildArchiveCover(file: File) {
-  const sourceDataUrl = await readFileAsDataUrl(file);
-  const sourceImage = await loadImage(sourceDataUrl);
+async function normalizeCoverToTarget(generatedDataUrl: string) {
+  const sourceImage = await loadImage(generatedDataUrl);
   const canvas = document.createElement('canvas');
   canvas.width = TARGET_WIDTH;
   canvas.height = TARGET_HEIGHT;
@@ -70,90 +69,14 @@ async function buildArchiveCover(file: File) {
 
   const sourceWidth = sourceImage.naturalWidth;
   const sourceHeight = sourceImage.naturalHeight;
-  const sourceAspect = sourceWidth / sourceHeight;
-  const targetAspect = TARGET_WIDTH / TARGET_HEIGHT;
+  // Keep aspect ratio and avoid any deformation: center-crop to exact banner size.
+  const scale = Math.max(TARGET_WIDTH / sourceWidth, TARGET_HEIGHT / sourceHeight);
+  const drawWidth = sourceWidth * scale;
+  const drawHeight = sourceHeight * scale;
+  const drawX = (TARGET_WIDTH - drawWidth) / 2;
+  const drawY = (TARGET_HEIGHT - drawHeight) / 2;
 
-  if (sourceAspect >= targetAspect) {
-    const cropWidth = Math.floor(sourceHeight * targetAspect);
-    const cropX = Math.max(0, Math.floor((sourceWidth - cropWidth) / 2));
-    context.drawImage(
-      sourceImage,
-      cropX,
-      0,
-      cropWidth,
-      sourceHeight,
-      0,
-      0,
-      TARGET_WIDTH,
-      TARGET_HEIGHT
-    );
-  } else {
-    const backgroundScale = Math.max(TARGET_WIDTH / sourceWidth, TARGET_HEIGHT / sourceHeight);
-    const backgroundWidth = sourceWidth * backgroundScale;
-    const backgroundHeight = sourceHeight * backgroundScale;
-    const backgroundX = (TARGET_WIDTH - backgroundWidth) / 2;
-    const backgroundY = (TARGET_HEIGHT - backgroundHeight) / 2;
-
-    context.save();
-    context.filter = 'blur(26px)';
-    context.drawImage(sourceImage, backgroundX, backgroundY, backgroundWidth, backgroundHeight);
-    context.restore();
-    context.fillStyle = 'rgba(255,255,255,0.08)';
-    context.fillRect(0, 0, TARGET_WIDTH, TARGET_HEIGHT);
-
-    const centerScale = TARGET_HEIGHT / sourceHeight;
-    const centerWidth = sourceWidth * centerScale;
-    const centerX = (TARGET_WIDTH - centerWidth) / 2;
-    const leftGap = Math.max(0, Math.floor(centerX));
-    const rightGap = Math.max(0, TARGET_WIDTH - Math.ceil(centerX + centerWidth));
-
-    const stretchedCanvas = document.createElement('canvas');
-    stretchedCanvas.width = Math.max(1, Math.round(centerWidth));
-    stretchedCanvas.height = TARGET_HEIGHT;
-
-    const stretchedContext = stretchedCanvas.getContext('2d');
-
-    if (stretchedContext) {
-      stretchedContext.drawImage(sourceImage, 0, 0, stretchedCanvas.width, TARGET_HEIGHT);
-      const edgeSampleWidth = Math.max(24, Math.min(120, Math.round(stretchedCanvas.width * 0.08)));
-
-      if (leftGap > 0) {
-        context.save();
-        context.filter = 'blur(6px)';
-        context.drawImage(
-          stretchedCanvas,
-          0,
-          0,
-          edgeSampleWidth,
-          TARGET_HEIGHT,
-          0,
-          0,
-          leftGap,
-          TARGET_HEIGHT
-        );
-        context.restore();
-      }
-
-      if (rightGap > 0) {
-        context.save();
-        context.filter = 'blur(6px)';
-        context.drawImage(
-          stretchedCanvas,
-          stretchedCanvas.width - edgeSampleWidth,
-          0,
-          edgeSampleWidth,
-          TARGET_HEIGHT,
-          TARGET_WIDTH - rightGap,
-          0,
-          rightGap,
-          TARGET_HEIGHT
-        );
-        context.restore();
-      }
-    }
-
-    context.drawImage(sourceImage, centerX, 0, centerWidth, TARGET_HEIGHT);
-  }
+  context.drawImage(sourceImage, drawX, drawY, drawWidth, drawHeight);
 
   const blob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
@@ -174,7 +97,7 @@ async function buildArchiveCover(file: File) {
     blob,
     sourceWidth,
     sourceHeight,
-    sourceDataUrl,
+    generatedDataUrl,
   };
 }
 
@@ -295,13 +218,42 @@ export default function ArchiveCoverPage() {
     setWooCategoryBackendUrl('');
 
     try {
-      const output = await buildArchiveCover(sourceFile);
+      const sourceDataUrl = await readFileAsDataUrl(sourceFile);
+      const sourceImage = await loadImage(sourceDataUrl);
+      const response = await fetch('/api/generate-category-cover', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageDataUrl: sourceDataUrl,
+        }),
+      });
+      const rawBody = await response.text();
+      let payload: {
+        image?: string;
+        mimeType?: string;
+        error?: string;
+      } = {};
+
+      if (rawBody) {
+        try {
+          payload = JSON.parse(rawBody) as typeof payload;
+        } catch {
+          throw new Error(rawBody.slice(0, 240));
+        }
+      }
+
+      if (!response.ok || !payload.image) {
+        throw new Error(payload.error || 'Generazione AI cover categoria fallita.');
+      }
+
+      const generatedDataUrl = `data:${payload.mimeType || 'image/png'};base64,${payload.image}`;
+      const output = await normalizeCoverToTarget(generatedDataUrl);
 
       setSourceInfo({
-        width: output.sourceWidth,
-        height: output.sourceHeight,
+        width: sourceImage.naturalWidth,
+        height: sourceImage.naturalHeight,
       });
-      setSourcePreviewUrl(output.sourceDataUrl);
+      setSourcePreviewUrl(sourceDataUrl);
       setGeneratedBlob(output.blob);
 
       if (generatedPreviewUrl) {
@@ -445,7 +397,7 @@ export default function ArchiveCoverPage() {
               ))}
             </select>
             <p className="mt-2 text-xs text-[#4C6583]">
-              Serve solo per il nome file automatico in download.
+              Serve per il nome file automatico e per abilitare la sync WooCommerce.
             </p>
           </div>
 
