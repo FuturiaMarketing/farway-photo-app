@@ -14,6 +14,8 @@ type ProductCategory = {
 
 const TARGET_WIDTH = 1140;
 const TARGET_HEIGHT = 300;
+const TARGET_ASPECT_RATIO = TARGET_WIDTH / TARGET_HEIGHT;
+const MIN_GENERATED_ASPECT_RATIO = TARGET_ASPECT_RATIO - 0.2;
 const CLIENT_SEAM_SIGMA_THRESHOLD = 2.6;
 const CLIENT_SEAM_ROW_DIFF_THRESHOLD = 40;
 const CLIENT_SEAM_ROW_COVERAGE_THRESHOLD = 0.56;
@@ -600,7 +602,7 @@ export default function ArchiveCoverPage() {
       const generatedImage = await loadImage(generatedDataUrl);
       const generatedAspectRatio = generatedImage.naturalWidth / generatedImage.naturalHeight;
 
-      if (generatedAspectRatio < 4.6) {
+      if (generatedAspectRatio < MIN_GENERATED_ASPECT_RATIO) {
         throw new Error(
           `Output AI non valido: banner troppo stretto (${generatedImage.naturalWidth}x${generatedImage.naturalHeight}).`
         );
