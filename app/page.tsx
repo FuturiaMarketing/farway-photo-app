@@ -649,6 +649,39 @@ async function createTinySessionThumbnail(dataUrl: string) {
   return canvas.toDataURL('image/webp', 0.45);
 }
 
+async function compressGenerationReferenceDataUrl(
+  dataUrl: string,
+  options?: { maxDimension?: number; quality?: number }
+) {
+  if (!dataUrl.startsWith('data:image/')) {
+    return dataUrl;
+  }
+
+  const sourceImage = await loadBrowserImage(dataUrl);
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+
+  if (!context) {
+    return dataUrl;
+  }
+
+  let width = sourceImage.naturalWidth;
+  let height = sourceImage.naturalHeight;
+  const maxDimension = Math.max(720, Math.round(options?.maxDimension || 1400));
+
+  if (Math.max(width, height) > maxDimension) {
+    const ratio = maxDimension / Math.max(width, height);
+    width = Math.max(1, Math.round(width * ratio));
+    height = Math.max(1, Math.round(height * ratio));
+  }
+
+  canvas.width = width;
+  canvas.height = height;
+  context.drawImage(sourceImage, 0, 0, width, height);
+
+  return canvas.toDataURL('image/jpeg', options?.quality ?? 0.82);
+}
+
 function LoadingCard({ label }: { label: string }) {
   return (
     <div className="rounded-2xl border border-[#D7D9DD] p-4">
@@ -871,6 +904,29 @@ async function uploadClientReferenceImage(projectId: string, key: string, dataUr
   } catch {
     return dataUrl;
   }
+}
+
+async function materializeGenerationReferenceUrl(
+  projectId: string,
+  key: string,
+  imageUrl: string
+) {
+  if (!String(imageUrl || '').startsWith('data:image/')) {
+    return imageUrl;
+  }
+
+  const uploadedUrl = await uploadClientReferenceImage(projectId, key, imageUrl);
+
+  if (!String(uploadedUrl || '').startsWith('data:image/')) {
+    return uploadedUrl;
+  }
+
+  // Last-resort safety: if temporary upload fails, shrink inline payload
+  // to reduce the risk of hitting 413 limits on /api/generate.
+  return compressGenerationReferenceDataUrl(uploadedUrl, {
+    maxDimension: 1280,
+    quality: 0.8,
+  });
 }
 
 function mergeAppState(localState: Partial<PersistedAppState>, remoteState: PersistedAppState) {
@@ -3302,10 +3358,6 @@ export default function Home() {
     if (!job) throw new Error('Configurazione non pronta.');
     const normalizedRequestPose = args.pose.toLowerCase();
     const relevantSourceImages = getRelevantSourceImages(args.pose, args.targetColor);
-    const strictColorSourceImages = getStrictColorSourceImages(
-      relevantSourceImages,
-      args.targetColor
-    );
     const effectiveGender = args.genderOverride || job.gender;
     const scenarioLabel = args.scenarioOverrideLabel || selectedScenarioLabel;
     const scenarioReferenceUrl =
@@ -3324,6 +3376,50 @@ export default function Home() {
       product: entry.product,
       imageUrl: entry.imageUrl,
     }));
+
+    const generationReferenceRawUrls = Array.from(
+      new Set(
+        [
+          ...relevantSourceImages.map((img) => img.url),
+          ...environmentReferenceImageUrls,
+          ...companionReferences.map((entry) => entry.imageUrl).filter(Boolean),
+          ...(args.anchorImageUrl ? [args.anchorImageUrl] : []),
+        ].filter((url): url is string => typeof url === 'string' && url.length > 0)
+      )
+    );
+    const generationReferenceResolvedEntries = await Promise.all(
+      generationReferenceRawUrls.map(async (url, index) => [
+        url,
+        await materializeGenerationReferenceUrl(
+          projectId,
+          `generate-${selectedProduct?.id || 'product'}-${args.key}-${index}-${Date.now()}`,
+          url
+        ),
+      ] as const)
+    );
+    const generationReferenceUrlMap = new Map<string, string>(
+      generationReferenceResolvedEntries
+    );
+    const resolveGenerationReferenceUrl = (url: string) =>
+      generationReferenceUrlMap.get(url) || url;
+    const normalizedRelevantSourceImages = relevantSourceImages.map((image) => ({
+      ...image,
+      url: resolveGenerationReferenceUrl(image.url),
+    }));
+    const strictColorSourceImages = getStrictColorSourceImages(
+      normalizedRelevantSourceImages,
+      args.targetColor
+    );
+    const normalizedEnvironmentReferenceImageUrls = environmentReferenceImageUrls
+      .map((url) => resolveGenerationReferenceUrl(url))
+      .filter(Boolean);
+    const normalizedCompanionReferences = companionReferences.map((entry) => ({
+      ...entry,
+      imageUrl: resolveGenerationReferenceUrl(entry.imageUrl),
+    }));
+    const normalizedAnchorImageUrl = args.anchorImageUrl
+      ? resolveGenerationReferenceUrl(args.anchorImageUrl)
+      : undefined;
     const productDescriptionContext = String(selectedProduct?.description || '')
       .replace(/<[^>]+>/g, ' ')
       .replace(/&nbsp;/gi, ' ')
@@ -3332,19 +3428,21 @@ export default function Home() {
       .slice(0, 1200);
     const imageUrls = [
       ...strictColorSourceImages.map((img) => img.url),
-      ...relevantSourceImages.map((img) => img.url),
-      ...environmentReferenceImageUrls,
-      ...companionReferences.map((entry) => entry.imageUrl).filter(Boolean),
-      ...(args.anchorImageUrl ? [args.anchorImageUrl] : []),
+      ...normalizedRelevantSourceImages.map((img) => img.url),
+      ...normalizedEnvironmentReferenceImageUrls,
+      ...normalizedCompanionReferences.map((entry) => entry.imageUrl).filter(Boolean),
+      ...(normalizedAnchorImageUrl ? [normalizedAnchorImageUrl] : []),
     ];
     const finalGenerationImageUrls = Array.from(
       new Set(
         [
           ...strictColorSourceImages.slice(0, 2).map((image) => image.url),
-          ...relevantSourceImages.slice(0, 3).map((image) => image.url),
-          ...environmentReferenceImageUrls,
-          ...companionReferences.map((entry) => entry.imageUrl).filter(Boolean),
-          ...(args.anchorImageUrl && args.kind !== 'alternate' ? [args.anchorImageUrl] : []),
+          ...normalizedRelevantSourceImages.slice(0, 3).map((image) => image.url),
+          ...normalizedEnvironmentReferenceImageUrls,
+          ...normalizedCompanionReferences.map((entry) => entry.imageUrl).filter(Boolean),
+          ...(normalizedAnchorImageUrl && args.kind !== 'alternate'
+            ? [normalizedAnchorImageUrl]
+            : []),
         ].filter(Boolean)
       )
     );
@@ -3352,9 +3450,9 @@ export default function Home() {
       imageUrls,
       finalGenerationImageUrls,
       generationKind: args.kind,
-      garmentReferenceImageUrls: relevantSourceImages.map((img) => img.url),
+      garmentReferenceImageUrls: normalizedRelevantSourceImages.map((img) => img.url),
       colorReferenceImageUrls: strictColorSourceImages.map((img) => img.url),
-      environmentReferenceImageUrls,
+      environmentReferenceImageUrls: normalizedEnvironmentReferenceImageUrls,
       targetColorLabel: args.targetColor,
       productName: selectedProduct?.name || '',
       productDescription: productDescriptionContext,
@@ -3470,8 +3568,14 @@ export default function Home() {
           args.additionalCorrectionPrompt
             ? `Apply these additional correction instructions to this new render: ${args.additionalCorrectionPrompt}.`
             : '',
-          buildReferencePromptForImages(relevantSourceImages, args.anchorImageUrl ? 2 : 1, args.targetColor),
-          args.anchorImageUrl ? `If an anchor image is provided, use it only for model identity, expression, framing, and continuity. Never use it as the source of truth for garment design, garment color, trims, bows, decorations, or construction details. ${args.anchorInstruction || ''}` : 'Create a clean front hero image for the requested color.',
+          buildReferencePromptForImages(
+            normalizedRelevantSourceImages,
+            normalizedAnchorImageUrl ? 2 : 1,
+            args.targetColor
+          ),
+          normalizedAnchorImageUrl
+            ? `If an anchor image is provided, use it only for model identity, expression, framing, and continuity. Never use it as the source of truth for garment design, garment color, trims, bows, decorations, or construction details. ${args.anchorInstruction || ''}`
+            : 'Create a clean front hero image for the requested color.',
           `Pose: ${args.posePrompt}.`,
         ].join(' '),
     };
@@ -3525,6 +3629,12 @@ export default function Home() {
       try {
         data = JSON.parse(rawBody) as { image?: string; error?: string };
       } catch {
+        if (response.status === 413) {
+          throw new Error(
+            'Errore generazione: richiesta troppo grande (413). Le reference immagini sono state ridotte automaticamente: riprova.'
+          );
+        }
+
         if (!response.ok) {
           throw new Error(`Errore server (${response.status}): risposta non valida.`);
         }
