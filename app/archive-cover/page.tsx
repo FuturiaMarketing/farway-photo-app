@@ -4,6 +4,12 @@ import Link from 'next/link';
 import NextImage from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Download, ExternalLink, ImagePlus, Loader2, Upload, Wand2 } from 'lucide-react';
+import {
+  ARCHIVE_COVER_DIMENSIONS_LABEL,
+  ARCHIVE_COVER_HEIGHT,
+  ARCHIVE_COVER_MIN_ACCEPTED_ASPECT_RATIO,
+  ARCHIVE_COVER_WIDTH,
+} from '@/lib/archive-cover';
 
 type ProductCategory = {
   id: number;
@@ -12,10 +18,15 @@ type ProductCategory = {
   parent: number;
 };
 
-const TARGET_WIDTH = 1140;
-const TARGET_HEIGHT = 300;
+const TARGET_WIDTH = ARCHIVE_COVER_WIDTH;
+const TARGET_HEIGHT = ARCHIVE_COVER_HEIGHT;
 const TARGET_ASPECT_RATIO = TARGET_WIDTH / TARGET_HEIGHT;
-const MIN_GENERATED_ASPECT_RATIO = TARGET_ASPECT_RATIO - 0.2;
+const MIN_GENERATED_ASPECT_RATIO = ARCHIVE_COVER_MIN_ACCEPTED_ASPECT_RATIO;
+const OUTPUT_MIME_TYPE = 'image/png';
+const OUTPUT_FILE_EXTENSION = 'png';
+const TOP_EDGE_TRIM_MAX_RATIO = 0.15;
+const TOP_EDGE_TRIM_MIN_ROWS = 2;
+const TOP_EDGE_BAD_PIXEL_RATIO = 0.992;
 const CLIENT_SEAM_SIGMA_THRESHOLD = 2.6;
 const CLIENT_SEAM_ROW_DIFF_THRESHOLD = 40;
 const CLIENT_SEAM_ROW_COVERAGE_THRESHOLD = 0.56;
@@ -218,14 +229,26 @@ async function normalizeCoverToTarget(
 
   const sourceWidth = sourceImage.naturalWidth;
   const sourceHeight = sourceImage.naturalHeight;
+  const sourceTrimTop = await detectTopEdgeTrim(sourceImage);
+  const effectiveSourceHeight = Math.max(1, sourceHeight - sourceTrimTop);
   // The AI already produced an outpainted scene; here we only normalize to exact output size.
-  const scale = Math.max(TARGET_WIDTH / sourceWidth, TARGET_HEIGHT / sourceHeight);
+  const scale = Math.max(TARGET_WIDTH / sourceWidth, TARGET_HEIGHT / effectiveSourceHeight);
   const drawWidth = sourceWidth * scale;
-  const drawHeight = sourceHeight * scale;
+  const drawHeight = effectiveSourceHeight * scale;
   const drawX = (TARGET_WIDTH - drawWidth) / 2;
   const drawY = (TARGET_HEIGHT - drawHeight) / 2;
 
-  context.drawImage(sourceImage, drawX, drawY, drawWidth, drawHeight);
+  context.drawImage(
+    sourceImage,
+    0,
+    sourceTrimTop,
+    sourceWidth,
+    effectiveSourceHeight,
+    drawX,
+    drawY,
+    drawWidth,
+    drawHeight
+  );
 
   if (centerLockSourceDataUrl) {
     const centerLockSource = await loadImage(centerLockSourceDataUrl);
@@ -270,8 +293,7 @@ async function normalizeCoverToTarget(
 
         resolve(outputBlob);
       },
-      'image/jpeg',
-      0.92
+      OUTPUT_MIME_TYPE
     );
   });
 
@@ -281,6 +303,65 @@ async function normalizeCoverToTarget(
     sourceHeight,
     generatedDataUrl,
   };
+}
+
+async function detectTopEdgeTrim(image: HTMLImageElement) {
+  const sampledWidth = Math.min(1200, Math.max(320, image.naturalWidth));
+  const sampledHeight = Math.min(
+    500,
+    Math.max(80, Math.round((image.naturalHeight / image.naturalWidth) * sampledWidth))
+  );
+  const canvas = document.createElement('canvas');
+  canvas.width = sampledWidth;
+  canvas.height = sampledHeight;
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+
+  if (!context) {
+    return 0;
+  }
+
+  context.drawImage(image, 0, 0, sampledWidth, sampledHeight);
+  const imageData = context.getImageData(0, 0, sampledWidth, sampledHeight);
+  const pixels = imageData.data;
+  const maxRowsToTrim = Math.max(1, Math.floor(sampledHeight * TOP_EDGE_TRIM_MAX_RATIO));
+  const stepX = Math.max(1, Math.floor(sampledWidth / 400));
+  let trimmedRows = 0;
+
+  for (let y = 0; y < maxRowsToTrim; y += 1) {
+    let badPixels = 0;
+    let sampledPixels = 0;
+
+    for (let x = 0; x < sampledWidth; x += stepX) {
+      const index = (y * sampledWidth + x) * 4;
+      const red = pixels[index];
+      const green = pixels[index + 1];
+      const blue = pixels[index + 2];
+      const alpha = pixels[index + 3];
+      const isTransparent = alpha < 8;
+      const isHardBlack = alpha > 245 && red < 8 && green < 8 && blue < 8;
+
+      if (isTransparent || isHardBlack) {
+        badPixels += 1;
+      }
+
+      sampledPixels += 1;
+    }
+
+    const badRatio = badPixels / Math.max(1, sampledPixels);
+
+    if (badRatio >= TOP_EDGE_BAD_PIXEL_RATIO) {
+      trimmedRows += 1;
+      continue;
+    }
+
+    break;
+  }
+
+  if (trimmedRows < TOP_EDGE_TRIM_MIN_ROWS) {
+    return 0;
+  }
+
+  return Math.round((trimmedRows / sampledHeight) * image.naturalHeight);
 }
 
 async function buildOutpaintSeed(sourceDataUrl: string) {
@@ -511,7 +592,7 @@ export default function ArchiveCoverPage() {
     const fallbackSourceName = slugify(stripExtension(sourceFile?.name || 'copertina'));
     const safeCategoryPart = categoryPart || fallbackSourceName || 'categoria';
 
-    return `cover-archivio-${safeCategoryPart}-1140x300.jpg`;
+    return `cover-archivio-${safeCategoryPart}-${ARCHIVE_COVER_DIMENSIONS_LABEL}.${OUTPUT_FILE_EXTENSION}`;
   }, [selectedCategory, sourceFile]);
 
   const handleSourceFile = (file: File | null) => {
@@ -719,7 +800,9 @@ export default function ArchiveCoverPage() {
       <nav className="sticky top-0 z-40 flex items-center justify-between border-b border-[#D7D9DD] bg-white px-6 py-4 shadow-sm">
         <div>
           <h1 className="text-lg font-bold">Cover Archivio Categorie</h1>
-          <p className="text-xs text-[#4C6583]">Genera banner 1140x300 con soggetto centrato</p>
+          <p className="text-xs text-[#4C6583]">
+            {`Genera banner ${ARCHIVE_COVER_DIMENSIONS_LABEL} con soggetto centrato`}
+          </p>
         </div>
         <Link
           href="/"
@@ -768,11 +851,11 @@ export default function ArchiveCoverPage() {
           </div>
 
           <div className="mt-4 rounded-xl border border-[#D7D9DD] bg-[#F8FAFB] p-3 text-xs text-[#4C6583]">
-            <div>Output fisso: 1140x300</div>
+            <div>{`Output fisso: ${ARCHIVE_COVER_DIMENSIONS_LABEL}`}</div>
             <div>Soggetto centrato</div>
             <div>Estensione orizzontale automatica</div>
             <div>Centro soggetto bloccato (anti-deformazione)</div>
-            <div>Formato output: JPG</div>
+            <div>Formato output: PNG (alta qualità)</div>
           </div>
 
           <div className="mt-4">
@@ -900,10 +983,13 @@ export default function ArchiveCoverPage() {
 
             <div>
               <div className="mb-2 text-xs font-black uppercase tracking-wide text-[#4C6583]">
-                Cover 1140x300
+                {`Cover ${ARCHIVE_COVER_DIMENSIONS_LABEL}`}
               </div>
               <div className="overflow-hidden rounded-2xl border border-[#D7D9DD] bg-[#F8FAFB] p-3">
-                <div className="relative aspect-[19/5] w-full overflow-hidden rounded-xl bg-slate-100">
+                <div
+                  className="relative w-full overflow-hidden rounded-xl bg-slate-100"
+                  style={{ aspectRatio: TARGET_ASPECT_RATIO }}
+                >
                   {generatedPreviewUrl ? (
                     <NextImage
                       src={generatedPreviewUrl}
@@ -918,7 +1004,9 @@ export default function ArchiveCoverPage() {
                     </div>
                   )}
                 </div>
-                <div className="mt-3 text-xs text-[#4C6583]">Dimensioni output: 1140x300</div>
+                <div className="mt-3 text-xs text-[#4C6583]">
+                  {`Dimensioni output: ${ARCHIVE_COVER_DIMENSIONS_LABEL}`}
+                </div>
               </div>
             </div>
           </div>

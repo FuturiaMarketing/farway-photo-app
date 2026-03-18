@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
 import sharp from 'sharp';
+import {
+  ARCHIVE_COVER_DIMENSIONS_LABEL,
+  ARCHIVE_COVER_MIN_ACCEPTED_ASPECT_RATIO,
+} from '@/lib/archive-cover';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -12,8 +16,7 @@ const defaultImageGenerationModels = [
   'gemini-3.1-flash-image-preview',
 ] as const;
 const maxImageGenerationAttempts = 4;
-const targetBannerAspectRatio = 1140 / 300;
-const minBannerAspectRatio = targetBannerAspectRatio - 0.2;
+const minBannerAspectRatio = ARCHIVE_COVER_MIN_ACCEPTED_ASPECT_RATIO;
 const seamSigmaThreshold = 2.8;
 const seamBandMinRatio = 0.2;
 const seamBandMaxRatio = 0.8;
@@ -509,7 +512,7 @@ export async function POST(req: Request) {
       'Create a premium horizontal archive header image by outpainting a centered subject.',
       'This is a CONSERVATIVE outpainting task.',
       parsedSeedInput
-        ? 'Image 1 is a 1140x300 outpainting template with transparent side areas.'
+        ? `Image 1 is a ${ARCHIVE_COVER_DIMENSIONS_LABEL} outpainting template with transparent side areas.`
         : '',
       parsedSeedInput
         ? 'Treat Image 1 center area as protected: keep the subject full body, centered, and visually intact.'
