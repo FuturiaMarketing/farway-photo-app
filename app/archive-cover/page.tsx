@@ -302,7 +302,9 @@ async function buildOutpaintSeed(sourceDataUrl: string) {
 
   context.drawImage(sourceImage, placement.x, placement.y, placement.width, placement.height);
 
-  return canvas.toDataURL('image/png');
+  // Keep alpha channels for side outpainting hints but reduce payload size
+  // to avoid serverless body limits.
+  return canvas.toDataURL('image/webp', 0.82);
 }
 
 function getColumnDiff(
@@ -566,7 +568,6 @@ export default function ArchiveCoverPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          imageDataUrl: sourceDataUrl,
           seedImageDataUrl: seedDataUrl,
           modelOverride: modelOverride.trim() || undefined,
         }),
@@ -582,6 +583,11 @@ export default function ArchiveCoverPage() {
         try {
           payload = JSON.parse(rawBody) as typeof payload;
         } catch {
+          if (response.status === 413) {
+            throw new Error(
+              'Richiesta troppo grande (413). Ho già ridotto il payload della cover: riprova la generazione.'
+            );
+          }
           throw new Error(rawBody.slice(0, 240));
         }
       }
