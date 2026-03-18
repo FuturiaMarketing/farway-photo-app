@@ -12,8 +12,8 @@ type ProductCategory = {
   parent: number;
 };
 
-const TARGET_WIDTH = 1920;
-const TARGET_HEIGHT = 400;
+const TARGET_WIDTH = 1140;
+const TARGET_HEIGHT = 300;
 const CLIENT_SEAM_SIGMA_THRESHOLD = 2.6;
 const CLIENT_SEAM_ROW_DIFF_THRESHOLD = 40;
 const CLIENT_SEAM_ROW_COVERAGE_THRESHOLD = 0.56;
@@ -507,7 +507,7 @@ export default function ArchiveCoverPage() {
     const fallbackSourceName = slugify(stripExtension(sourceFile?.name || 'copertina'));
     const safeCategoryPart = categoryPart || fallbackSourceName || 'categoria';
 
-    return `cover-archivio-${safeCategoryPart}-1920x400.jpg`;
+    return `cover-archivio-${safeCategoryPart}-1140x300.jpg`;
   }, [selectedCategory, sourceFile]);
 
   const handleSourceFile = (file: File | null) => {
@@ -711,7 +711,7 @@ export default function ArchiveCoverPage() {
       <nav className="sticky top-0 z-40 flex items-center justify-between border-b border-[#D7D9DD] bg-white px-6 py-4 shadow-sm">
         <div>
           <h1 className="text-lg font-bold">Cover Archivio Categorie</h1>
-          <p className="text-xs text-[#4C6583]">Genera banner 1920x400 con soggetto centrato</p>
+          <p className="text-xs text-[#4C6583]">Genera banner 1140x300 con soggetto centrato</p>
         </div>
         <Link
           href="/"
@@ -760,7 +760,7 @@ export default function ArchiveCoverPage() {
           </div>
 
           <div className="mt-4 rounded-xl border border-[#D7D9DD] bg-[#F8FAFB] p-3 text-xs text-[#4C6583]">
-            <div>Output fisso: 1920x400</div>
+            <div>Output fisso: 1140x300</div>
             <div>Soggetto centrato</div>
             <div>Estensione orizzontale automatica</div>
             <div>Centro soggetto bloccato (anti-deformazione)</div>
@@ -892,10 +892,10 @@ export default function ArchiveCoverPage() {
 
             <div>
               <div className="mb-2 text-xs font-black uppercase tracking-wide text-[#4C6583]">
-                Cover 1920x400
+                Cover 1140x300
               </div>
               <div className="overflow-hidden rounded-2xl border border-[#D7D9DD] bg-[#F8FAFB] p-3">
-                <div className="relative aspect-[24/5] w-full overflow-hidden rounded-xl bg-slate-100">
+                <div className="relative aspect-[19/5] w-full overflow-hidden rounded-xl bg-slate-100">
                   {generatedPreviewUrl ? (
                     <NextImage
                       src={generatedPreviewUrl}
@@ -910,7 +910,7 @@ export default function ArchiveCoverPage() {
                     </div>
                   )}
                 </div>
-                <div className="mt-3 text-xs text-[#4C6583]">Dimensioni output: 1920x400</div>
+                <div className="mt-3 text-xs text-[#4C6583]">Dimensioni output: 1140x300</div>
               </div>
             </div>
           </div>
