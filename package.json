@@ -11,7 +11,10 @@
     "woo:quality:apply": "node scripts/farway-woo-image-quality-retrofit.cjs --apply",
     "woo:media:cleanup:scan": "node scripts/farway-clean-unused-app-media.cjs",
     "woo:media:cleanup:apply-gallery": "node scripts/farway-clean-unused-app-media.cjs --apply-gallery",
-    "woo:media:cleanup:apply-all": "node scripts/farway-clean-unused-app-media.cjs --apply-gallery --apply-delete"
+    "woo:media:cleanup:apply-all": "node scripts/farway-clean-unused-app-media.cjs --apply-gallery --apply-delete",
+    "farway:erp:legends": "node scripts/farway-build-color-size-legends.cjs",
+    "farway:erp:reconcile": "node scripts/farway-erp-reconcile-products.cjs",
+    "farway:erp:apply": "node scripts/farway-erp-reconcile-products.cjs --apply --confirm-apply FARWAY_ERP_IMPORT_APPROVED"
   },
   "dependencies": {
     "@woocommerce/woocommerce-rest-api": "^1.0.2",
@@ -30,6 +33,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "read-excel-file": "^9.0.9",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

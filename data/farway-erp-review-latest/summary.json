@@ -1,0 +1,52 @@
+{
+  "generatedAt": "2026-05-05T22:52:48.097Z",
+  "excelPath": "C:\\Users\\fabri\\Downloads\\Magazzino Farway 31.12.24.xlsx",
+  "outputDir": "data/tmp-farway-erp-reconcile-20260506-legends",
+  "normalizedRows": 1157,
+  "catalogRecords": 1314,
+  "actions": {
+    "review_required": 636,
+    "update_existing_meta": 513,
+    "create_hidden_draft_candidate": 4,
+    "exclude": 4
+  },
+  "matches": {
+    "review_multiple_candidates": 618,
+    "matched_auto_sku": 513,
+    "review_unmapped_size": 13,
+    "review_sku_attribute_conflict": 5,
+    "excluded_tisha_lost": 4,
+    "new_hidden_draft_candidate": 4
+  },
+  "locations": {
+    "Milano": 983,
+    "Doha": 174
+  },
+  "skippedSheets": [
+    "Materie prime - elastici ",
+    "MAGAZZINO - RIEPILOGO PF",
+    "Materie prime - tessuti",
+    "Materie prime - scatole",
+    "Variazioni magazzino",
+    "MAGAZZINO - RIEP. MATERIE PRIME",
+    "Materie prime - portabiti",
+    "prodotti venduti",
+    "Materie prime - etichette",
+    "Materie prime - bottoni",
+    "Materie prime - cartoline",
+    "costo sartoria",
+    "Materie prime - nastri",
+    "Materie prime - cartellini"
+  ],
+  "applyResult": {
+    "applied": 0,
+    "skipped": 1157,
+    "results": []
+  },
+  "files": {
+    "master": "data\\tmp-farway-erp-reconcile-20260506-legends\\master-normalizzato.csv",
+    "report": "data\\tmp-farway-erp-reconcile-20260506-legends\\report-riconciliazione.md",
+    "dryRun": "data\\tmp-farway-erp-reconcile-20260506-legends\\dry-run-import.json",
+    "summary": "data\\tmp-farway-erp-reconcile-20260506-legends\\summary.json"
+  }
+}
