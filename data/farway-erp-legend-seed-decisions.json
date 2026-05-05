@@ -1,0 +1,52 @@
+{
+  "decisions": [
+    {
+      "itemId": "da699df3a770",
+      "kind": "color",
+      "sourceValue": "AMB",
+      "selectedValue": "Rosso e ciliegia",
+      "note": "",
+      "updatedAt": "2026-05-05T20:28:06.577Z"
+    },
+    {
+      "itemId": "dc1c5b791846",
+      "kind": "color",
+      "sourceValue": "CBM",
+      "selectedValue": "Off-white e cloud",
+      "note": "",
+      "updatedAt": "2026-05-05T20:27:40.574Z"
+    },
+    {
+      "itemId": "22e4e1c84d77",
+      "kind": "color",
+      "sourceValue": "GFR",
+      "selectedValue": "Fantasie: animali",
+      "note": "",
+      "updatedAt": "2026-05-05T20:27:31.157Z"
+    },
+    {
+      "itemId": "fd616e54e97d",
+      "kind": "color",
+      "sourceValue": "KAKI",
+      "selectedValue": "Verde khaki e militare",
+      "note": "",
+      "updatedAt": "2026-05-05T20:27:44.930Z"
+    },
+    {
+      "itemId": "b04c789075db",
+      "kind": "color",
+      "sourceValue": "LI- PS",
+      "selectedValue": "Ecru e lino naturale",
+      "note": "",
+      "updatedAt": "2026-05-05T20:28:00.597Z"
+    },
+    {
+      "itemId": "c77e883aecc6",
+      "kind": "color",
+      "sourceValue": "WHT",
+      "selectedValue": "Bianco puro",
+      "note": "",
+      "updatedAt": "2026-05-05T20:27:50.317Z"
+    }
+  ]
+}
