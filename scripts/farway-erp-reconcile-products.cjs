@@ -14,6 +14,7 @@ const ERP_FIELDS = [
   { name: 'fw_erp_year', key: 'field_fw_erp_year' },
   { name: 'fw_erp_is_campionatura', key: 'field_fw_erp_is_campionatura' },
   { name: 'fw_erp_location', key: 'field_fw_erp_location' },
+  { name: 'fw_erp_original_sku', key: 'field_fw_erp_original_sku' },
   { name: 'fw_erp_unit_cost_sartoria', key: 'field_fw_erp_unit_cost_sartoria' },
   { name: 'fw_erp_unit_cost_tessuto', key: 'field_fw_erp_unit_cost_tessuto' },
   { name: 'fw_erp_unit_cost_fodera', key: 'field_fw_erp_unit_cost_fodera' },
@@ -845,6 +846,7 @@ function buildErpMetaData(row) {
     fw_erp_year: row.year,
     fw_erp_is_campionatura: row.isCampionatura ? '1' : '0',
     fw_erp_location: row.location,
+    fw_erp_original_sku: row.erpOriginalSku,
     fw_erp_unit_cost_sartoria: row.unitCostSartoria,
     fw_erp_unit_cost_tessuto: row.unitCostTessuto,
     fw_erp_unit_cost_fodera: row.unitCostFodera,
@@ -960,10 +962,40 @@ function buildSkuIndex(records) {
   return index;
 }
 
+function isHiddenInventoryRow(row) {
+  return row.location === 'Doha' || Boolean(row.isCampionatura);
+}
+
+function hiddenInventoryLabel(row) {
+  if (row.location === 'Doha' && row.isCampionatura) return 'Doha campionatura';
+  if (row.location === 'Doha') return 'Doha';
+  if (row.isCampionatura) return 'Campionatura';
+  return '';
+}
+
+function findAttributeCandidates(row, catalog, { ignoreSize = false } = {}) {
+  return catalog.filter((record) => {
+    if (row.canonicalColorSlug && record.canonicalColorSlug && row.canonicalColorSlug !== record.canonicalColorSlug) {
+      return false;
+    }
+    if (!ignoreSize && row.canonicalSize && record.canonicalSize && row.canonicalSize !== record.canonicalSize) {
+      return false;
+    }
+    if (row.productKind && record.productKind && row.productKind !== record.productKind) {
+      return false;
+    }
+    return row.canonicalColorSlug || (!ignoreSize && row.canonicalSize) || row.productKind;
+  });
+}
+
 function findMatch(row, catalog, skuIndex) {
   const sourceSku = sanitizeSku(row.sourceCode);
   if (sourceSku && skuIndex.has(sourceSku)) {
     const matches = skuIndex.get(sourceSku);
+    if (isHiddenInventoryRow(row)) {
+      return { status: 'review_hidden_inventory_reference', record: null, candidates: matches };
+    }
+
     if (matches.length === 1) {
       const match = matches[0];
       const sizeConflict = row.canonicalSize && match.canonicalSize && row.canonicalSize !== match.canonicalSize;
@@ -983,30 +1015,19 @@ function findMatch(row, catalog, skuIndex) {
   }
 
   if (row.sizeMappingBlocked) {
-    const candidates = catalog.filter((record) => {
-      if (row.canonicalColorSlug && record.canonicalColorSlug && row.canonicalColorSlug !== record.canonicalColorSlug) {
-        return false;
-      }
-      if (row.productKind && record.productKind && row.productKind !== record.productKind) {
-        return false;
-      }
-      return row.canonicalColorSlug || row.productKind;
-    });
+    const candidates = findAttributeCandidates(row, catalog, { ignoreSize: true });
     return { status: 'review_unmapped_size', record: null, candidates };
   }
 
-  const candidates = catalog.filter((record) => {
-    if (row.canonicalColorSlug && record.canonicalColorSlug && row.canonicalColorSlug !== record.canonicalColorSlug) {
-      return false;
-    }
-    if (row.canonicalSize && record.canonicalSize && row.canonicalSize !== record.canonicalSize) {
-      return false;
-    }
-    if (row.productKind && record.productKind && row.productKind !== record.productKind) {
-      return false;
-    }
-    return row.canonicalColorSlug || row.canonicalSize || row.productKind;
-  });
+  const candidates = findAttributeCandidates(row, catalog);
+
+  if (isHiddenInventoryRow(row)) {
+    return {
+      status: candidates.length > 0 ? 'review_hidden_inventory_reference' : 'review_hidden_inventory_new',
+      record: null,
+      candidates,
+    };
+  }
 
   if (candidates.length === 1 && row.canonicalColorSlug && row.canonicalSize && row.productKind) {
     return { status: 'matched_auto_attributes', record: candidates[0], candidates };
@@ -1016,7 +1037,7 @@ function findMatch(row, catalog, skuIndex) {
     return { status: 'review_multiple_candidates', record: null, candidates };
   }
 
-  return { status: 'new_hidden_draft_candidate', record: null, candidates: [] };
+  return { status: 'review_missing_non_hidden_product', record: null, candidates: [] };
 }
 
 function uniqueSku(base, usedSkus) {
@@ -1032,6 +1053,23 @@ function uniqueSku(base, usedSkus) {
 }
 
 function proposeSku(row, match, usedSkus) {
+  if (isHiddenInventoryRow(row)) {
+    const suffix = row.location === 'Doha' ? 'DOHA' : 'CAMP';
+    const base =
+      sanitizeSku(match.record?.sku) ||
+      sanitizeSku(row.sourceCode) ||
+      [
+        'FW',
+        row.year || 'ERP',
+        row.season || 'NA',
+        row.productKind || 'PRODOTTO',
+        row.canonicalColorSlug,
+        slugify(row.canonicalSize),
+        row.sourceRow,
+      ].join('-');
+    return uniqueSku(`${base}-${suffix}`, usedSkus);
+  }
+
   if (match.record?.sku) return sanitizeSku(match.record.sku);
 
   if (match.record) {
@@ -1058,17 +1096,20 @@ function proposeSku(row, match, usedSkus) {
   );
 }
 
-function buildCreatePayload(row, sku) {
+function buildCreatePayload(row, sku, match = { record: null }) {
+  const hiddenLabel = hiddenInventoryLabel(row);
+  const baseName = match.record?.productName || row.sourceModel || row.productKind || 'Prodotto Farway';
   const nameParts = [
-    row.sourceModel || row.productKind || 'Prodotto Farway',
+    baseName,
     row.canonicalColor || row.sourceColor,
     row.canonicalSize,
     row.year,
-    row.isCampionatura ? 'campionatura' : '',
   ].filter(Boolean);
+  const name = hiddenLabel ? `${nameParts.join(' - ')} (${hiddenLabel})` : nameParts.join(' - ');
+  const erpOriginalSku = sanitizeSku(match.record?.sku) || sanitizeSku(row.sourceCode);
 
   return {
-    name: nameParts.join(' - '),
+    name,
     type: 'simple',
     sku,
     status: 'draft',
@@ -1076,7 +1117,7 @@ function buildCreatePayload(row, sku) {
     manage_stock: true,
     stock_quantity: row.stockQuantity,
     stock_status: row.stockQuantity > 0 ? 'instock' : 'outofstock',
-    meta_data: buildErpMetaData(row),
+    meta_data: buildErpMetaData({ ...row, erpOriginalSku }),
   };
 }
 
@@ -1122,8 +1163,11 @@ function reconcileRows(rows, catalog) {
     const match = findMatch(row, catalog, skuIndex);
     const proposedSku = proposeSku(row, match, usedSkus);
     const isMatched = Boolean(match.record);
+    const hiddenInventory = isHiddenInventoryRow(row);
     const action =
-      match.status.startsWith('matched') && isMatched
+      hiddenInventory
+        ? 'review_required'
+        : match.status.startsWith('matched') && isMatched
         ? match.record.sku
           ? 'update_existing_meta'
           : 'set_missing_sku_and_update_meta'
@@ -1165,7 +1209,7 @@ function reconcileRows(rows, catalog) {
         type: action,
         method: 'POST',
         endpoint: 'products',
-        payload: buildCreatePayload(row, proposedSku),
+        payload: buildCreatePayload(row, proposedSku, match),
         source: pickSource(record),
       });
     } else {

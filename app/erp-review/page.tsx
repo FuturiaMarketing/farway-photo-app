@@ -41,6 +41,7 @@ type ReviewSourceRow = {
   row: number;
   code: string;
   model: string;
+  isCampionatura: boolean;
   color: string;
   canonicalColor: string;
   size: string;
@@ -62,6 +63,9 @@ type ReviewGroup = {
   needsCodeMapping: boolean;
   hasSkuConflict: boolean;
   hasMultipleCandidates: boolean;
+  isDoha: boolean;
+  isCampionatura: boolean;
+  isHiddenInventory: boolean;
   sheets: string[];
   seasons: string[];
   years: string[];
@@ -386,6 +390,12 @@ export default function FarwayErpReviewPage() {
                           {group.hasMultipleCandidates ? (
                             <span className="rounded-full bg-amber-100 px-2 py-1 text-[11px] font-black text-amber-800">più match</span>
                           ) : null}
+                          {group.isDoha ? (
+                            <span className="rounded-full bg-sky-100 px-2 py-1 text-[11px] font-black text-sky-800">Doha nascosto</span>
+                          ) : null}
+                          {group.isCampionatura ? (
+                            <span className="rounded-full bg-violet-100 px-2 py-1 text-[11px] font-black text-violet-800">campionatura</span>
+                          ) : null}
                           {hasMatchStatus(group, 'review_unmapped_size') ? (
                             <span className="rounded-full bg-rose-100 px-2 py-1 text-[11px] font-black text-rose-800">13/14 fuori sito</span>
                           ) : null}
@@ -417,6 +427,11 @@ export default function FarwayErpReviewPage() {
                           {hasMatchStatus(selectedGroup, 'review_unmapped_size') ? (
                             <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-800">
                               Questo gruppo contiene taglie 13/14 anni: non esistono come taglie nel nuovo sito, quindi non vanno forzate su una variante WooCommerce esistente.
+                            </div>
+                          ) : null}
+                          {selectedGroup.isHiddenInventory ? (
+                            <div className="mt-3 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-bold text-sky-900">
+                              Questo gruppo è inventario nascosto {selectedGroup.isDoha ? 'Doha' : 'campionatura'}: se scegli un prodotto WooCommerce, viene usato come riferimento per creare un record nascosto separato. La quantità non verrà aggiunta allo stock vendibile del prodotto esistente.
                             </div>
                           ) : null}
                         </div>
@@ -496,7 +511,9 @@ export default function FarwayErpReviewPage() {
                             ) : null}
                           </div>
                           <p className="mb-3 text-xs font-semibold leading-5 text-slate-500">
-                            Qui si decide il prodotto WooCommerce. Le singole varianti vengono poi agganciate automaticamente usando colore e taglia riconciliati.
+                            {selectedGroup.isHiddenInventory
+                              ? 'Qui si sceglie il prodotto WooCommerce di riferimento. Il record finale sarà nascosto e separato.'
+                              : 'Qui si decide il prodotto WooCommerce. Le singole varianti vengono poi agganciate automaticamente usando colore e taglia riconciliati.'}
                           </p>
                           <div className="grid gap-3">
                             {selectedGroup.candidates.length > 0 ? (
@@ -519,7 +536,7 @@ export default function FarwayErpReviewPage() {
                                     className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md bg-[#6DA34D] px-3 py-2 text-sm font-black text-white hover:bg-[#5E9042] disabled:opacity-60"
                                   >
                                     <Check size={16} />
-                                    Conferma prodotto Woo
+                                    {selectedGroup.isHiddenInventory ? 'Usa come riferimento' : 'Conferma prodotto Woo'}
                                   </button>
                                 </div>
                               ))

@@ -1,22 +1,23 @@
 {
-  "generatedAt": "2026-05-05T22:52:48.097Z",
+  "generatedAt": "2026-05-05T23:31:56.890Z",
   "excelPath": "C:\\Users\\fabri\\Downloads\\Magazzino Farway 31.12.24.xlsx",
-  "outputDir": "data/tmp-farway-erp-reconcile-20260506-legends",
+  "outputDir": "data/tmp-farway-erp-reconcile-20260506-hidden-inventory",
   "normalizedRows": 1157,
   "catalogRecords": 1314,
   "actions": {
-    "review_required": 636,
-    "update_existing_meta": 513,
-    "create_hidden_draft_candidate": 4,
+    "review_required": 703,
+    "update_existing_meta": 450,
     "exclude": 4
   },
   "matches": {
-    "review_multiple_candidates": 618,
-    "matched_auto_sku": 513,
+    "matched_auto_sku": 450,
+    "review_multiple_candidates": 406,
+    "review_hidden_inventory_reference": 275,
     "review_unmapped_size": 13,
     "review_sku_attribute_conflict": 5,
     "excluded_tisha_lost": 4,
-    "new_hidden_draft_candidate": 4
+    "review_hidden_inventory_new": 3,
+    "review_missing_non_hidden_product": 1
   },
   "locations": {
     "Milano": 983,
@@ -44,9 +45,9 @@
     "results": []
   },
   "files": {
-    "master": "data\\tmp-farway-erp-reconcile-20260506-legends\\master-normalizzato.csv",
-    "report": "data\\tmp-farway-erp-reconcile-20260506-legends\\report-riconciliazione.md",
-    "dryRun": "data\\tmp-farway-erp-reconcile-20260506-legends\\dry-run-import.json",
-    "summary": "data\\tmp-farway-erp-reconcile-20260506-legends\\summary.json"
+    "master": "data\\tmp-farway-erp-reconcile-20260506-hidden-inventory\\master-normalizzato.csv",
+    "report": "data\\tmp-farway-erp-reconcile-20260506-hidden-inventory\\report-riconciliazione.md",
+    "dryRun": "data\\tmp-farway-erp-reconcile-20260506-hidden-inventory\\dry-run-import.json",
+    "summary": "data\\tmp-farway-erp-reconcile-20260506-hidden-inventory\\summary.json"
   }
 }

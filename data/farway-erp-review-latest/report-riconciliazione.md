@@ -1,10 +1,10 @@
 # Farway ERP - Report riconciliazione prodotti
 
-Generato: 2026-05-05T22:52:48.187Z
+Generato: 2026-05-05T23:31:56.996Z
 
 ## Scope
 - File Excel: `C:\Users\fabri\Downloads\Magazzino Farway 31.12.24.xlsx`
-- Output: `data/tmp-farway-erp-reconcile-20260506-legends`
+- Output: `data/tmp-farway-erp-reconcile-20260506-hidden-inventory`
 - Record WooCommerce analizzati: 1314
 - Righe normalizzate dal file: 1157
 - Azioni dry-run prodotte: 1157
@@ -12,21 +12,22 @@ Generato: 2026-05-05T22:52:48.187Z
 ## Sintesi azioni
 | Azione | Righe |
 | --- | --- |
-| review_required | 636 |
-| update_existing_meta | 513 |
-| create_hidden_draft_candidate | 4 |
+| review_required | 703 |
+| update_existing_meta | 450 |
 | exclude | 4 |
 
 
 ## Sintesi match
 | Match status | Righe |
 | --- | --- |
-| review_multiple_candidates | 618 |
-| matched_auto_sku | 513 |
+| matched_auto_sku | 450 |
+| review_multiple_candidates | 406 |
+| review_hidden_inventory_reference | 275 |
 | review_unmapped_size | 13 |
 | review_sku_attribute_conflict | 5 |
 | excluded_tisha_lost | 4 |
-| new_hidden_draft_candidate | 4 |
+| review_hidden_inventory_new | 3 |
+| review_missing_non_hidden_product | 1 |
 
 
 ## Location
@@ -61,12 +62,7 @@ _Nessuna riga._
 
 
 ## Prodotti mancanti candidati a draft hidden
-| Foglio | Riga | SKU | Modello | Colore | Taglia | Location | Qta |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| MAGAZZINO - CAMPIONATURA ALEF | 4 | FW-ERP-NA-PRODOTTO-X-4 | Supplemento prototipo |  |  | Milano | 0 |
-| MAGAZZINO - CAMPIONATURA ALEF | 6 | FW-ERP-NA-PRODOTTO-X-6 | Supplemento prototipo |  |  | Milano | 0 |
-| MAGAZZINO - CAMPIONATURA ALEF | 8 | FW-ERP-NA-PRODOTTO-X-8 | Supplemento prototipo |  |  | Milano | 0 |
-| MAGAZZINO - PF AI23 | 117 | FW-2023-AI-PRODOTTO-X-117 | R=ROSA R=RENA T=TEJIDO |  |  | Milano | 0 |
+_Nessuna riga._
 
 
 ## Casi da approvare manualmente
@@ -82,8 +78,11 @@ _Nessuna riga._
 | MAGAZZINO - VESTITI NATALE AI22 | 10 | ABNTCG06YA22 | Natalizio | Verde bosco e scuri | 5-6 anni | 4563:4583:Sopravveste in velluto \| 4529:4559:Abito in velluto manica lunga \| 4381:Scrunchies in velluto - Verde bosco e scuri \| 1303:Giacca in Denim \| 780:F |
 | MAGAZZINO - VESTITI NATALE AI22 | 11 | ABNTCG08YA22 | Natalizio | Verde bosco e scuri | 7-8 anni | 4563:4585:Sopravveste in velluto \| 4529:4560:Abito in velluto manica lunga \| 4381:Scrunchies in velluto - Verde bosco e scuri \| 1303:Giacca in Denim \| 780:F |
 | MAGAZZINO - CAMPIONATURA ALEF | 3 |  | T-shirt maha | 4ANNI | 3-4 anni | 4466:Fiocco Personaggi \| 4449:Fiocco Fucsia \| 4442:Fiocco Fantasia fiori \| 4434:Fiocco elefantini \| 4430:Fiocco Rapunzel \| 4349:Cerchietto fantasia gatti \ |
+| MAGAZZINO - CAMPIONATURA ALEF | 4 |  | Supplemento prototipo |  |  |  |
 | MAGAZZINO - CAMPIONATURA ALEF | 5 |  | Camicia maha | 4ANNI | 3-4 anni | 2038:2049:Top double-face fantasia marina \| 2038:2048:Top double-face fantasia marina \| 2017:2030:Top double-face fantasia aquiloni \| 2017:2029:Top double-fa |
+| MAGAZZINO - CAMPIONATURA ALEF | 6 |  | Supplemento prototipo |  |  |  |
 | MAGAZZINO - CAMPIONATURA ALEF | 7 |  | Pantalone Maha | 4ANNI | 3-4 anni | 2038:2049:Top double-face fantasia marina \| 2038:2048:Top double-face fantasia marina \| 2017:2030:Top double-face fantasia aquiloni \| 2017:2029:Top double-fa |
+| MAGAZZINO - CAMPIONATURA ALEF | 8 |  | Supplemento prototipo |  |  |  |
 | MAGAZZINO - CAMPIONATURA ALEF | 9 |  | Pan03 | 4ANNI | 3-4 anni | 4466:Fiocco Personaggi \| 4449:Fiocco Fucsia \| 4442:Fiocco Fantasia fiori \| 4434:Fiocco elefantini \| 4430:Fiocco Rapunzel \| 4349:Cerchietto fantasia gatti \ |
 | MAGAZZINO - CAMPIONATURA ALEF | 10 |  | Camicia Alla Coreana FW-CAM-05 |  | 3-4 anni | 4659:4667:Cardigan fatto a mano \| 4615:4618:Camicia a scacchi \| 4604:4607:Camicia fantasia animali \| 4563:4581:Sopravveste in velluto \| 4563:4580:Sopravvest |
 | MAGAZZINO - CAMPIONATURA ALEF | 11 |  | CAM03 Scamiciata | 4ANNI | 3-4 anni | 4466:Fiocco Personaggi \| 4449:Fiocco Fucsia \| 4442:Fiocco Fantasia fiori \| 4434:Fiocco elefantini \| 4430:Fiocco Rapunzel \| 4349:Cerchietto fantasia gatti \ |
@@ -109,9 +108,6 @@ _Nessuna riga._
 | MAGAZZINO - PF Accessori 2024 | 22 | FIOCCO01 | FIOCCHI GRANDE | Fantasie: personaggi |  | 4466:Fiocco Personaggi \| 4449:Fiocco Fucsia \| 4442:Fiocco Fantasia fiori \| 4434:Fiocco elefantini \| 4430:Fiocco Rapunzel \| 4404:Scrunchies in cotone - Fant |
 | MAGAZZINO - PF Accessori 2024 | 23 | FIOCCO01 | FIOCCHI GRANDE | Fantasie: animali |  | 4604:4610:Camicia fantasia animali \| 4604:4609:Camicia fantasia animali \| 4604:4608:Camicia fantasia animali \| 4604:4607:Camicia fantasia animali \| 4604:460 |
 | MAGAZZINO - PF Accessori 2024 | 25 | SCRUNCHIES | Elastico capelli | Fantasie: personaggi | OS | 4404:Scrunchies in cotone - Fantasie: personaggi \| 1303:Giacca in Denim \| 780:Fermaglio Flower \| 775:Fermaglio Écru |
-| MAGAZZINO - PF Accessori 2024 | 26 | SCRUNCHIES | Elastico capelli | Fantasie: personaggi | OS | 4404:Scrunchies in cotone - Fantasie: personaggi \| 1303:Giacca in Denim \| 780:Fermaglio Flower \| 775:Fermaglio Écru |
-| MAGAZZINO - PF Accessori 2024 | 28 | SCRUNCHIES | Elastico capelli | Rosso e ciliegia | OS | 4406:Scrunchies in cotone - Rosso e ciliegia \| 4382:Scrunchies in velluto - Rosso e ciliegia \| 1303:Giacca in Denim \| 780:Fermaglio Flower \| 775:Fermaglio É |
-| MAGAZZINO - PF Accessori 2024 | 29 | SCRUNCHIES | Elastico capelli | Fantasie: personaggi | OS | 4404:Scrunchies in cotone - Fantasie: personaggi \| 1303:Giacca in Denim \| 780:Fermaglio Flower \| 775:Fermaglio Écru |
 
 
 ## Esclusioni Tisha

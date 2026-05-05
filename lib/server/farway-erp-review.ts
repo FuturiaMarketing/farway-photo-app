@@ -60,6 +60,7 @@ export type FarwayErpReviewSourceRow = {
   model: string;
   description: string;
   productKind: string;
+  isCampionatura: boolean;
   color: string;
   canonicalColor: string;
   size: string;
@@ -94,6 +95,9 @@ export type FarwayErpReviewGroup = {
   needsCodeMapping: boolean;
   hasSkuConflict: boolean;
   hasMultipleCandidates: boolean;
+  isDoha: boolean;
+  isCampionatura: boolean;
+  isHiddenInventory: boolean;
   sheets: string[];
   seasons: string[];
   years: string[];
@@ -377,6 +381,7 @@ function buildSourceRow(row: MasterRow): FarwayErpReviewSourceRow {
     model: row.sourceModel || '',
     description: row.sourceDescription || '',
     productKind: row.productKind || '',
+    isCampionatura: String(row.isCampionatura || '').toLowerCase() === 'true',
     color: row.sourceColor || '',
     canonicalColor: row.canonicalColor || '',
     size: row.sourceSize || '',
@@ -450,7 +455,13 @@ function candidateCompatibleWithRow(candidate: DryRunCandidate, row: FarwayErpRe
   const exactSku = normalizeCode(candidate.sku || '') && normalizeCode(candidate.sku || '') === normalizeCode(row.code);
 
   if (exactSku) return true;
-  if (!rowKind) return row.matchStatus === 'review_sku_attribute_conflict';
+  if (!rowKind) {
+    return [
+      'review_sku_attribute_conflict',
+      'review_hidden_inventory_reference',
+      'review_unmapped_size',
+    ].includes(row.matchStatus);
+  }
   return rowKind === candidateKind;
 }
 
@@ -518,7 +529,11 @@ export async function buildFarwayErpReviewPack(): Promise<FarwayErpReviewPack> {
     );
 
     const shouldCollectCandidates =
-      sourceRow.matchStatus === 'review_sku_attribute_conflict' ||
+      [
+        'review_sku_attribute_conflict',
+        'review_hidden_inventory_reference',
+        'review_unmapped_size',
+      ].includes(sourceRow.matchStatus) ||
       Boolean(normalizeText(sourceRow.productKind));
 
     if (shouldCollectCandidates) {
@@ -539,6 +554,9 @@ export async function buildFarwayErpReviewPack(): Promise<FarwayErpReviewPack> {
     const models = uniqueSorted(sourceRows.map((row) => row.model || row.description), 10);
     const hasSkuConflict = sourceRows.some((row) => row.matchStatus === 'review_sku_attribute_conflict');
     const hasMultipleCandidates = sourceRows.some((row) => row.matchStatus === 'review_multiple_candidates');
+    const isDoha = sourceRows.some((row) => row.location === 'Doha');
+    const isCampionatura = sourceRows.some((row) => row.isCampionatura);
+    const isHiddenInventory = isDoha || isCampionatura;
     const hasDecodedProductKind = sourceRows.some((row) => Boolean(normalizeText(row.productKind)));
     const needsCodeMapping = !hasDecodedProductKind || group.styleCode === 'Senza codice';
     const rawCandidates = Array.from(group.candidateMap.values())
@@ -564,6 +582,9 @@ export async function buildFarwayErpReviewPack(): Promise<FarwayErpReviewPack> {
       needsCodeMapping,
       hasSkuConflict,
       hasMultipleCandidates,
+      isDoha,
+      isCampionatura,
+      isHiddenInventory,
       sheets: uniqueSorted(sourceRows.map((row) => row.sheet), 8),
       seasons: uniqueSorted(sourceRows.map((row) => row.season), 4),
       years: uniqueSorted(sourceRows.map((row) => row.year), 8),
