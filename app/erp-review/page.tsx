@@ -1,5 +1,6 @@
 "use client";
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -34,6 +35,14 @@ type ReviewCandidate = {
   colors: string[];
   sizes: string[];
   variationIds: number[];
+};
+
+type WooProductSearchItem = {
+  id: number;
+  name: string;
+  sku?: string;
+  image?: string;
+  images?: string[];
 };
 
 type ReviewSourceRow = {
@@ -157,12 +166,15 @@ export default function FarwayErpReviewPage() {
   const [filter, setFilter] = useState<FilterKey>('pending');
   const [query, setQuery] = useState('');
   const [note, setNote] = useState('');
-  const [manualProductId, setManualProductId] = useState('');
+  const [wooProducts, setWooProducts] = useState<WooProductSearchItem[]>([]);
+  const [wooProductSearch, setWooProductSearch] = useState('');
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [productsError, setProductsError] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  async function loadPack() {
+  async function loadPack(preferredGroupId?: string) {
     setLoading(true);
     setError('');
     try {
@@ -170,7 +182,15 @@ export default function FarwayErpReviewPage() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Caricamento review fallito');
       setPack(data as ReviewPack);
-      setSelectedGroupId((current) => current || (data.groups?.[0]?.groupId ?? ''));
+      setSelectedGroupId((current) => {
+        const groups = (data.groups || []) as ReviewGroup[];
+        const preferredExists = preferredGroupId && groups.some((group) => group.groupId === preferredGroupId);
+        const currentExists = current && groups.some((group) => group.groupId === current);
+
+        if (preferredExists) return preferredGroupId;
+        if (currentExists) return current;
+        return groups[0]?.groupId ?? '';
+      });
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Errore sconosciuto');
     } finally {
@@ -180,6 +200,33 @@ export default function FarwayErpReviewPage() {
 
   useEffect(() => {
     void loadPack();
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadWooProducts() {
+      setProductsLoading(true);
+      setProductsError('');
+      try {
+        const response = await fetch('/api/products', { cache: 'no-store' });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Caricamento prodotti WooCommerce fallito');
+        if (isMounted) setWooProducts(Array.isArray(data) ? data : []);
+      } catch (loadError) {
+        if (isMounted) {
+          setProductsError(loadError instanceof Error ? loadError.message : 'Errore caricamento prodotti');
+        }
+      } finally {
+        if (isMounted) setProductsLoading(false);
+      }
+    }
+
+    void loadWooProducts();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const filteredGroups = useMemo(() => {
@@ -218,20 +265,36 @@ export default function FarwayErpReviewPage() {
 
   useEffect(() => {
     setNote(selectedGroup?.decision.note || '');
-    setManualProductId(
-      selectedGroup?.decision.status === 'approved_match' && selectedGroup.decision.selectedProductId
-        ? String(selectedGroup.decision.selectedProductId)
-        : ''
-    );
   }, [
     selectedGroup?.decision.note,
-    selectedGroup?.decision.selectedProductId,
-    selectedGroup?.decision.status,
     selectedGroup?.groupId,
   ]);
 
+  useEffect(() => {
+    setWooProductSearch('');
+  }, [selectedGroup?.groupId]);
+
+  const normalizedWooProductSearch = wooProductSearch.trim().toLowerCase();
+  const wooProductOptions = useMemo(() => {
+    if (normalizedWooProductSearch.length === 0) return [];
+
+    return wooProducts
+      .filter((product) =>
+        product.name.toLowerCase().includes(normalizedWooProductSearch) ||
+        String(product.sku || '').toLowerCase().includes(normalizedWooProductSearch) ||
+        String(product.id).includes(normalizedWooProductSearch)
+      )
+      .slice(0, 8);
+  }, [normalizedWooProductSearch, wooProducts]);
+
   async function saveDecision(status: DecisionStatus, selectedProductId?: number) {
     if (!selectedGroup) return;
+
+    const shouldAdvance = status === 'approved_match' && typeof selectedProductId === 'number';
+    const selectedIndex = filteredGroups.findIndex((group) => group.groupId === selectedGroup.groupId);
+    const nextGroupId = shouldAdvance && selectedIndex >= 0
+      ? filteredGroups[selectedIndex + 1]?.groupId || filteredGroups[selectedIndex - 1]?.groupId
+      : undefined;
 
     setSaving(true);
     setError('');
@@ -248,7 +311,8 @@ export default function FarwayErpReviewPage() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Salvataggio decisione fallito');
-      await loadPack();
+      if (shouldAdvance) setWooProductSearch('');
+      await loadPack(nextGroupId);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Errore sconosciuto');
     } finally {
@@ -547,25 +611,68 @@ export default function FarwayErpReviewPage() {
                             )}
                           </div>
                           <div className="mt-4 border-t border-slate-200 pt-4">
-                            <label className="text-xs font-black uppercase text-slate-500">
-                              ID WooCommerce manuale
-                              <input
-                                value={manualProductId}
-                                onChange={(event) => setManualProductId(event.target.value.replace(/[^0-9]/g, ''))}
-                                inputMode="numeric"
-                                placeholder="Es. 4529"
-                                className="mt-2 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-[#103D66] focus:bg-white"
-                              />
-                            </label>
-                            <button
-                              type="button"
-                              disabled={saving || Number(manualProductId) <= 0}
-                              onClick={() => void saveDecision('approved_match', Number(manualProductId))}
-                              className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-md bg-[#6DA34D] px-3 py-2 text-sm font-black text-white hover:bg-[#5E9042] disabled:opacity-50"
-                            >
-                              <Check size={16} />
-                              Conferma ID
-                            </button>
+                            <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                              <div className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                                Cerca prodotto WooCommerce
+                              </div>
+                            </div>
+                            <input
+                              value={wooProductSearch}
+                              onChange={(event) => setWooProductSearch(event.target.value)}
+                              placeholder="Cerca per nome, SKU o ID"
+                              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-700 outline-none focus:border-[#103D66]"
+                            />
+                            {selectedGroup.decision.status === 'approved_match' && selectedGroup.decision.selectedProductId ? (
+                              <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800">
+                                Prodotto confermato: #{selectedGroup.decision.selectedProductId}
+                              </div>
+                            ) : null}
+                            <div className="mt-3 grid gap-2">
+                              {wooProductOptions.map((product) => {
+                                const imageUrl = product.image || product.images?.[0] || '';
+
+                                return (
+                                  <button
+                                    key={product.id}
+                                    type="button"
+                                    disabled={saving}
+                                    onClick={() => void saveDecision('approved_match', product.id)}
+                                    className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left hover:border-[#6DA34D] hover:bg-[#F1F7EC] disabled:opacity-60"
+                                  >
+                                    <div className="relative h-16 w-12 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+                                      {imageUrl ? (
+                                        <Image src={imageUrl} alt={product.name} fill sizes="48px" className="object-cover" unoptimized />
+                                      ) : (
+                                        <div className="flex h-full w-full items-center justify-center text-[10px] font-black uppercase text-slate-300">
+                                          Woo
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <div className="truncate text-sm font-black text-[#103D66]">{product.name}</div>
+                                      <div className="mt-1 text-[10px] font-bold uppercase text-slate-400">
+                                        SKU: {product.sku || '-'} · ID: {product.id}
+                                      </div>
+                                    </div>
+                                    <Check size={16} className="shrink-0 text-[#6DA34D]" />
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            {productsError ? (
+                              <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-800">
+                                {productsError}
+                              </div>
+                            ) : null}
+                            {!productsError && wooProductOptions.length === 0 ? (
+                              <div className="mt-3 rounded-xl border border-dashed border-slate-200 px-4 py-5 text-center text-sm font-semibold text-slate-400">
+                                {productsLoading
+                                  ? 'Caricamento prodotti WooCommerce...'
+                                  : normalizedWooProductSearch.length === 0
+                                    ? 'Scrivi nella ricerca per trovare un prodotto WooCommerce.'
+                                    : 'Nessun prodotto trovato per questa ricerca.'}
+                              </div>
+                            ) : null}
                           </div>
                         </div>
 
