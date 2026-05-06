@@ -56,6 +56,7 @@ type ReviewGroupDraft = {
 export type FarwayErpReviewSourceRow = {
   sheet: string;
   row: number;
+  sourceOrder: number;
   code: string;
   model: string;
   description: string;
@@ -98,6 +99,9 @@ export type FarwayErpReviewGroup = {
   isDoha: boolean;
   isCampionatura: boolean;
   isHiddenInventory: boolean;
+  primarySheet: string;
+  firstSourceRow: number;
+  sourceOrder: number;
   sheets: string[];
   seasons: string[];
   years: string[];
@@ -373,10 +377,11 @@ function defaultDecision(groupId: string): FarwayErpReviewDecision {
   };
 }
 
-function buildSourceRow(row: MasterRow): FarwayErpReviewSourceRow {
+function buildSourceRow(row: MasterRow, sourceOrder = Number.MAX_SAFE_INTEGER): FarwayErpReviewSourceRow {
   return {
     sheet: row.sourceSheet || '',
     row: Math.round(toNumber(row.sourceRow)),
+    sourceOrder,
     code: row.sourceCode || '',
     model: row.sourceModel || '',
     description: row.sourceDescription || '',
@@ -489,6 +494,9 @@ export async function buildFarwayErpReviewPack(): Promise<FarwayErpReviewPack> {
   const masterBySource = new Map(
     masterRows.map((row) => [`${row.sourceSheet}::${row.sourceRow}`, row])
   );
+  const sourceOrderBySource = new Map(
+    masterRows.map((row, index) => [`${row.sourceSheet}::${row.sourceRow}`, index])
+  );
   const groupMap = new Map<string, ReviewGroupDraft>();
 
   for (const action of dryRun.actions || []) {
@@ -496,6 +504,7 @@ export async function buildFarwayErpReviewPack(): Promise<FarwayErpReviewPack> {
 
     const source = action.source || {};
     const masterRow = masterBySource.get(`${source.sheet || ''}::${source.row || ''}`);
+    const sourceOrder = sourceOrderBySource.get(`${source.sheet || ''}::${source.row || ''}`);
     const sourceRow = buildSourceRow(masterRow || {
       sourceSheet: source.sheet || '',
       sourceRow: String(source.row || ''),
@@ -504,7 +513,7 @@ export async function buildFarwayErpReviewPack(): Promise<FarwayErpReviewPack> {
       sourceColor: source.color || '',
       sourceSize: source.size || '',
       matchStatus: 'review_required',
-    });
+    }, sourceOrder ?? Number.MAX_SAFE_INTEGER);
     const styleCode = deriveStyleCode(sourceRow);
     const groupContext = buildGroupContext(sourceRow, styleCode);
     const groupId = stableGroupId(groupContext.key);
@@ -548,9 +557,10 @@ export async function buildFarwayErpReviewPack(): Promise<FarwayErpReviewPack> {
   }
 
   const groups = Array.from(groupMap.values()).map((group) => {
-    const sourceRows = group.sourceRows.sort((a, b) => a.sheet.localeCompare(b.sheet) || a.row - b.row);
+    const sourceRows = group.sourceRows.sort((a, b) => a.sourceOrder - b.sourceOrder || a.row - b.row);
     const rowCount = sourceRows.length;
     const totalQuantity = sourceRows.reduce((sum, row) => sum + row.stockQuantity, 0);
+    const firstSourceRow = sourceRows[0] || null;
     const models = uniqueSorted(sourceRows.map((row) => row.model || row.description), 10);
     const hasSkuConflict = sourceRows.some((row) => row.matchStatus === 'review_sku_attribute_conflict');
     const hasMultipleCandidates = sourceRows.some((row) => row.matchStatus === 'review_multiple_candidates');
@@ -585,6 +595,9 @@ export async function buildFarwayErpReviewPack(): Promise<FarwayErpReviewPack> {
       isDoha,
       isCampionatura,
       isHiddenInventory,
+      primarySheet: firstSourceRow?.sheet || '',
+      firstSourceRow: firstSourceRow?.row || 0,
+      sourceOrder: firstSourceRow?.sourceOrder ?? Number.MAX_SAFE_INTEGER,
       sheets: uniqueSorted(sourceRows.map((row) => row.sheet), 8),
       seasons: uniqueSorted(sourceRows.map((row) => row.season), 4),
       years: uniqueSorted(sourceRows.map((row) => row.year), 8),
@@ -600,11 +613,10 @@ export async function buildFarwayErpReviewPack(): Promise<FarwayErpReviewPack> {
   });
 
   groups.sort((a, b) => {
-    const statusWeight = (group: FarwayErpReviewGroup) => (group.decision.status === 'pending' ? 0 : 1);
     return (
-      statusWeight(a) - statusWeight(b) ||
-      b.rowCount - a.rowCount ||
-      Number(b.hasSkuConflict) - Number(a.hasSkuConflict) ||
+      a.sourceOrder - b.sourceOrder ||
+      a.primarySheet.localeCompare(b.primarySheet) ||
+      a.firstSourceRow - b.firstSourceRow ||
       a.styleCode.localeCompare(b.styleCode)
     );
   });

@@ -48,6 +48,7 @@ type WooProductSearchItem = {
 type ReviewSourceRow = {
   sheet: string;
   row: number;
+  sourceOrder?: number;
   code: string;
   model: string;
   isCampionatura: boolean;
@@ -75,6 +76,9 @@ type ReviewGroup = {
   isDoha: boolean;
   isCampionatura: boolean;
   isHiddenInventory: boolean;
+  primarySheet?: string;
+  firstSourceRow?: number;
+  sourceOrder?: number;
   sheets: string[];
   seasons: string[];
   years: string[];
@@ -107,6 +111,13 @@ type ReviewPack = {
 };
 
 type FilterKey = 'pending' | 'high' | 'unmapped' | 'approved' | 'unclear' | 'all';
+
+type SidebarGroupSection = {
+  sheet: string;
+  rowCount: number;
+  totalQuantity: number;
+  groups: ReviewGroup[];
+};
 
 const statusLabels: Record<DecisionStatus, string> = {
   pending: 'Da decidere',
@@ -156,8 +167,33 @@ function metricLabel(value: number, label: string) {
   return `${value.toLocaleString('it-IT')} ${label}`;
 }
 
+function groupCountLabel(value: number) {
+  return value === 1 ? '1 gruppo' : `${value.toLocaleString('it-IT')} gruppi`;
+}
+
 function hasMatchStatus(group: ReviewGroup, status: string) {
   return group.matchStatuses.some((entry) => entry.status === status && entry.count > 0);
+}
+
+function getGroupPrimarySheet(group: ReviewGroup) {
+  return group.primarySheet || group.sourceRows[0]?.sheet || group.sheets[0] || 'Senza foglio';
+}
+
+function getGroupFirstSourceRow(group: ReviewGroup) {
+  return group.firstSourceRow || group.sourceRows[0]?.row || 0;
+}
+
+function getGroupSourceOrder(group: ReviewGroup) {
+  return group.sourceOrder ?? group.sourceRows[0]?.sourceOrder ?? Number.MAX_SAFE_INTEGER;
+}
+
+function compareGroupsByExcelOrder(a: ReviewGroup, b: ReviewGroup) {
+  return (
+    getGroupSourceOrder(a) - getGroupSourceOrder(b) ||
+    getGroupPrimarySheet(a).localeCompare(getGroupPrimarySheet(b)) ||
+    getGroupFirstSourceRow(a) - getGroupFirstSourceRow(b) ||
+    a.title.localeCompare(b.title)
+  );
 }
 
 export default function FarwayErpReviewPage() {
@@ -255,12 +291,41 @@ export default function FarwayErpReviewPage() {
         .join(' ')
         .toLowerCase()
         .includes(normalizedQuery);
-    });
+    }).sort(compareGroupsByExcelOrder);
   }, [filter, pack?.groups, query]);
+
+  const sidebarSections = useMemo<SidebarGroupSection[]>(() => {
+    const sections = new Map<string, SidebarGroupSection>();
+
+    for (const group of filteredGroups) {
+      const sheet = getGroupPrimarySheet(group);
+      const existing = sections.get(sheet) || {
+        sheet,
+        rowCount: 0,
+        totalQuantity: 0,
+        groups: [],
+      };
+
+      existing.rowCount += group.rowCount;
+      existing.totalQuantity += group.totalQuantity;
+      existing.groups.push(group);
+      sections.set(sheet, existing);
+    }
+
+    return Array.from(sections.values()).map((section) => ({
+      ...section,
+      groups: section.groups.sort(compareGroupsByExcelOrder),
+    }));
+  }, [filteredGroups]);
 
   const selectedGroup = useMemo(() => {
     if (!pack) return null;
-    return pack.groups.find((group) => group.groupId === selectedGroupId) || filteredGroups[0] || null;
+    return (
+      filteredGroups.find((group) => group.groupId === selectedGroupId) ||
+      filteredGroups[0] ||
+      pack.groups.find((group) => group.groupId === selectedGroupId) ||
+      null
+    );
   }, [filteredGroups, pack, selectedGroupId]);
 
   useEffect(() => {
@@ -425,46 +490,56 @@ export default function FarwayErpReviewPage() {
                 </div>
 
                 <div className="min-h-0 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-sm">
-                  {filteredGroups.length > 0 ? (
-                    filteredGroups.map((group) => (
-                      <button
-                        key={group.groupId}
-                        type="button"
-                        onClick={() => setSelectedGroupId(group.groupId)}
-                        className={`block w-full border-b border-slate-100 px-4 py-3 text-left last:border-b-0 ${
-                          selectedGroup?.groupId === group.groupId ? 'bg-[#EEF5EA]' : 'hover:bg-slate-50'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="truncate text-sm font-black text-[#103D66]">{group.title}</div>
-                            <div className="mt-1 text-xs font-semibold text-slate-500">
-                              {metricLabel(group.rowCount, 'righe')} · qta {group.totalQuantity.toLocaleString('it-IT')}
-                            </div>
+                  {sidebarSections.length > 0 ? (
+                    sidebarSections.map((section) => (
+                      <div key={section.sheet} className="border-b border-slate-100 last:border-b-0">
+                        <div className="sticky top-0 z-10 border-b border-slate-100 bg-slate-50/95 px-4 py-2 backdrop-blur">
+                          <div className="truncate text-[11px] font-black uppercase text-slate-500">{section.sheet}</div>
+                          <div className="mt-0.5 text-[11px] font-semibold text-slate-400">
+                            {metricLabel(section.rowCount, 'righe')} · {groupCountLabel(section.groups.length)} · qta {section.totalQuantity.toLocaleString('it-IT')}
                           </div>
-                          <StatusBadge status={group.decision.status} />
                         </div>
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {group.priority === 'alta' ? (
-                            <span className="rounded-full bg-[#103D66] px-2 py-1 text-[11px] font-black text-white">alta priorità</span>
-                          ) : null}
-                          {group.hasSkuConflict ? (
-                            <span className="rounded-full bg-rose-100 px-2 py-1 text-[11px] font-black text-rose-800">SKU da verificare</span>
-                          ) : null}
-                          {group.hasMultipleCandidates ? (
-                            <span className="rounded-full bg-amber-100 px-2 py-1 text-[11px] font-black text-amber-800">più match</span>
-                          ) : null}
-                          {group.isDoha ? (
-                            <span className="rounded-full bg-sky-100 px-2 py-1 text-[11px] font-black text-sky-800">Doha nascosto</span>
-                          ) : null}
-                          {group.isCampionatura ? (
-                            <span className="rounded-full bg-violet-100 px-2 py-1 text-[11px] font-black text-violet-800">campionatura</span>
-                          ) : null}
-                          {hasMatchStatus(group, 'review_unmapped_size') ? (
-                            <span className="rounded-full bg-rose-100 px-2 py-1 text-[11px] font-black text-rose-800">13/14 fuori sito</span>
-                          ) : null}
-                        </div>
-                      </button>
+                        {section.groups.map((group) => (
+                          <button
+                            key={group.groupId}
+                            type="button"
+                            onClick={() => setSelectedGroupId(group.groupId)}
+                            className={`block w-full border-b border-slate-100 px-4 py-3 text-left last:border-b-0 ${
+                              selectedGroup?.groupId === group.groupId ? 'bg-[#EEF5EA]' : 'hover:bg-slate-50'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="truncate text-sm font-black text-[#103D66]">{group.title}</div>
+                                <div className="mt-1 text-xs font-semibold text-slate-500">
+                                  riga {getGroupFirstSourceRow(group) || '-'} · {metricLabel(group.rowCount, 'righe')} · qta {group.totalQuantity.toLocaleString('it-IT')}
+                                </div>
+                              </div>
+                              <StatusBadge status={group.decision.status} />
+                            </div>
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              {group.priority === 'alta' ? (
+                                <span className="rounded-full bg-[#103D66] px-2 py-1 text-[11px] font-black text-white">alta priorità</span>
+                              ) : null}
+                              {group.hasSkuConflict ? (
+                                <span className="rounded-full bg-rose-100 px-2 py-1 text-[11px] font-black text-rose-800">SKU da verificare</span>
+                              ) : null}
+                              {group.hasMultipleCandidates ? (
+                                <span className="rounded-full bg-amber-100 px-2 py-1 text-[11px] font-black text-amber-800">più match</span>
+                              ) : null}
+                              {group.isDoha ? (
+                                <span className="rounded-full bg-sky-100 px-2 py-1 text-[11px] font-black text-sky-800">Doha nascosto</span>
+                              ) : null}
+                              {group.isCampionatura ? (
+                                <span className="rounded-full bg-violet-100 px-2 py-1 text-[11px] font-black text-violet-800">campionatura</span>
+                              ) : null}
+                              {hasMatchStatus(group, 'review_unmapped_size') ? (
+                                <span className="rounded-full bg-rose-100 px-2 py-1 text-[11px] font-black text-rose-800">13/14 fuori sito</span>
+                              ) : null}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
                     ))
                   ) : (
                     <div className="p-6 text-sm font-semibold text-slate-500">Nessun gruppo per questo filtro.</div>
