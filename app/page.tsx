@@ -4,6 +4,10 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Image from '@/components/safe-image';
 import Link from 'next/link';
 import { ArrowLeft, Camera, Check, CheckCircle2, ChevronDown, CircleDashed, Download, ExternalLink, Loader2, RefreshCw, Settings, Upload, Wand2, X, XCircle } from 'lucide-react';
+import {
+  getFarwayOccasionSearchTokens,
+  normalizeFarwayOccasionToken,
+} from '@/lib/farway-occasions';
 
 const genders = ['Maschio', 'Femmina'];
 const ethnicities = ['Caucasico', 'Italiano', 'Mediterraneo', 'Scandinavo', 'Medio Orientale', 'Latino-Americano', 'Asiatico', 'Sud-Asiatico', 'Afroamericano', 'Misto'];
@@ -50,7 +54,8 @@ type AcfField = {
 type AcfFieldValues = Record<string, string | string[]>;
 type SourceView = (typeof sourceViewOptions)[number];
 type SourceReferenceMode = 'garment-only' | 'worn';
-type Product = { id: number; name: string; images: string[]; image: string; colors: string[]; sizes: string[]; description?: string; sku?: string; frontendUrl?: string; backendUrl?: string; categories: ProductCategory[]; acfFields: AcfField[]; acfValues: AcfFieldValues; selectedAdditionalScenarios?: string[]; hasFarwaySyncedImages?: boolean };
+type ProductImageDetail = { src: string; originalSrc?: string; name?: string; alt?: string };
+type Product = { id: number; name: string; images: string[]; image: string; imageDetails?: ProductImageDetail[]; colors: string[]; sizes: string[]; description?: string; sku?: string; frontendUrl?: string; backendUrl?: string; categories: ProductCategory[]; acfFields: AcfField[]; acfValues: AcfFieldValues; selectedAdditionalScenarios?: string[]; hasFarwaySyncedImages?: boolean };
 type Job = { id: string; modelAge: string; gender: string; ethnicity: string; scenario: string; fit: string; length: string; status: 'pending' };
 type SelectedSourceImage = { url: string; view: SourceView; color: string; mode: SourceReferenceMode };
 type GeneratedResult = { key: string; kind: 'hero' | 'front' | 'gallery' | 'extra' | 'alternate'; pose: string; color: string; url: string };
@@ -62,7 +67,8 @@ type GeneratedAcfContent = {
 };
 type ActiveTab = 'products' | 'setup' | 'gallery';
 type Stage = 'idle' | 'hero' | 'production';
-type WooSyncMode = 'replace' | 'keep-existing';
+type GenerationMode = 'full-set' | 'integrative-only';
+type WooSyncMode = 'replace' | 'keep-existing' | 'append-only';
 type ProductProgressFilter = 'all' | 'todo' | 'in-progress' | 'completed';
 type ManualProductStatus = ProductProgressFilter | 'auto';
 type CompanionRole = string;
@@ -93,6 +99,7 @@ type ProductSession = {
   acfValues: AcfFieldValues;
   excludedSyncResultKeys: string[];
   selectedPrimarySyncResultKey: string;
+  generationMode?: GenerationMode;
   activeTab: ActiveTab;
   isPreviewApproved: boolean;
 };
@@ -1026,6 +1033,7 @@ export default function Home() {
   const hydratedProgressStateProjectIdRef = useRef<string | null>(null);
   const productLoadRequestIdRef = useRef(0);
   const [selectedPrimarySyncResultKey, setSelectedPrimarySyncResultKey] = useState('');
+  const [generationMode, setGenerationMode] = useState<GenerationMode>('full-set');
   const [genError, setGenError] = useState<string | null>(null);
   const [descriptionError, setDescriptionError] = useState<string | null>(null);
   const [isPreviewApproved, setIsPreviewApproved] = useState(false);
@@ -1061,6 +1069,10 @@ export default function Home() {
   );
   const selectedPrimarySyncResult =
     includedSyncResults.find((result) => result.key === selectedPrimarySyncResultKey) || null;
+  const isIntegrativeMode = generationMode === 'integrative-only';
+  const syncResultsForCurrentMode = isIntegrativeMode
+    ? includedSyncResults.filter((result) => result.kind === 'extra')
+    : includedSyncResults;
   const isBusy = stage !== 'idle';
   const availableCategories = Array.from(
     new Map(
@@ -1160,6 +1172,15 @@ export default function Home() {
       galleryResults.length >= galleryPoses.length &&
       extraScenarioResults.length >= selectedAdditionalScenarioSettings.length &&
       alternateGenderResults.length >= expectedAlternateResultCount
+  );
+  const isIntegrativeGenerationComplete = Boolean(
+    selectedProduct &&
+      selectedAdditionalScenarioSettings.length > 0 &&
+      selectedAdditionalScenarioSettings.every((scenario) =>
+        extraScenarioResults.some(
+          (result) => result.color === selectedColor && result.pose === scenario.label
+        )
+      )
   );
   const companionProduct =
     companionProductId && selectedProduct?.id !== companionProductId
@@ -1284,6 +1305,7 @@ export default function Home() {
     areCompanionRolesComplete &&
     selectedSourceImages.length > 0 &&
     sourceColorsComplete;
+  const isIntegrativeSetupComplete = isSetupComplete && selectedAdditionalScenarioSettings.length > 0;
   const nextUnsyncedProduct = selectedProduct
     ? [...products.slice(products.findIndex((product) => product.id === selectedProduct.id) + 1), ...products.slice(0, Math.max(products.findIndex((product) => product.id === selectedProduct.id), 0))]
         .find((product) => product.id !== selectedProduct.id && getProductStatus(product.id) !== 'completed') || null
@@ -1403,6 +1425,7 @@ export default function Home() {
       acfValues: buildInitialAcfValues(product),
       excludedSyncResultKeys: [],
       selectedPrimarySyncResultKey: '',
+      generationMode: 'full-set',
       activeTab: 'setup',
       isPreviewApproved: false,
     };
@@ -1445,6 +1468,7 @@ export default function Home() {
           parsed.selectedAdditionalScenarios.length > 0
             ? parsed.selectedAdditionalScenarios
             : defaultState.selectedAdditionalScenarios,
+        generationMode: parsed.generationMode === 'integrative-only' ? 'integrative-only' : 'full-set',
       };
     }
 
@@ -1467,6 +1491,7 @@ export default function Home() {
             parsed.selectedAdditionalScenarios.length > 0
               ? parsed.selectedAdditionalScenarios
               : defaultState.selectedAdditionalScenarios,
+          generationMode: parsed.generationMode === 'integrative-only' ? 'integrative-only' : 'full-set',
         };
       } catch {
         nextState = defaultState;
@@ -1566,6 +1591,7 @@ export default function Home() {
     setGeneratedShortDescriptionHtml(nextState.generatedShortDescriptionHtml || '');
     setExcludedSyncResultKeys(nextState.excludedSyncResultKeys || []);
     setSelectedPrimarySyncResultKey(nextState.selectedPrimarySyncResultKey || '');
+    setGenerationMode(nextState.generationMode === 'integrative-only' ? 'integrative-only' : 'full-set');
     setAcfValues(
       Object.fromEntries(
         product.acfFields.map((field) => [
@@ -2225,6 +2251,7 @@ export default function Home() {
       acfValues,
       excludedSyncResultKeys,
       selectedPrimarySyncResultKey,
+      generationMode,
       activeTab,
       isPreviewApproved,
     };
@@ -2256,6 +2283,7 @@ export default function Home() {
     selectedExtraUrbanScenarioLocation,
     generatedDescriptionHtml,
     generatedShortDescriptionHtml,
+    generationMode,
     acfValues,
     excludedSyncResultKeys,
     selectedPrimarySyncResultKey,
@@ -2510,6 +2538,88 @@ export default function Home() {
     return prioritizeGarmentOnly(
       garmentOnlyFallback.length > 0 ? garmentOnlyFallback : images
     );
+  };
+
+  const getSelectedProductImageDetails = () => {
+    if (!selectedProduct) {
+      return [];
+    }
+
+    if (selectedProduct.imageDetails && selectedProduct.imageDetails.length > 0) {
+      return selectedProduct.imageDetails;
+    }
+
+    return selectedProduct.images.map((src) => ({ src }));
+  };
+
+  const productImageMatchesScenario = (
+    image: ProductImageDetail,
+    scenarioLabel: string
+  ) => {
+    const haystack = normalizeFarwayOccasionToken(
+      [image.name, image.alt, image.src, image.originalSrc].filter(Boolean).join(' ')
+    );
+    const tokens = getFarwayOccasionSearchTokens(scenarioLabel);
+
+    return tokens.some((token) => haystack.includes(token));
+  };
+
+  const getExistingScenarioImageCount = (scenarioLabel: string) =>
+    getSelectedProductImageDetails().filter((image) =>
+      productImageMatchesScenario(image, scenarioLabel)
+    ).length;
+
+  const findWooProductAnchorImage = () => {
+    const normalizedColor = normalizeReferenceColor(selectedColor);
+    const images = getSelectedProductImageDetails();
+    const imageScore = (image: ProductImageDetail) => {
+      const haystack = normalizeFarwayOccasionToken(
+        [image.name, image.alt, image.src, image.originalSrc].filter(Boolean).join(' ')
+      );
+      let score = 0;
+
+      if (normalizedColor && haystack.includes(normalizedColor)) {
+        score += 4;
+      }
+
+      if (haystack.includes('front')) {
+        score += 3;
+      }
+
+      if (haystack.includes('action')) {
+        score += 2;
+      }
+
+      if (/ di Farway Milano$/i.test(String(image.name || '').trim())) {
+        score += 1;
+      }
+
+      return score;
+    };
+
+    return images
+      .map((image) => ({ image, score: imageScore(image) }))
+      .filter((entry) => entry.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .find((entry) => entry.image.src)?.image.src;
+  };
+
+  const findBestIntegrativeAnchorImage = () => {
+    const generatedAnchor =
+      generatedResults.find(
+        (result) => result.kind === 'front' && result.color === selectedColor
+      ) ||
+      generatedResults.find(
+        (result) =>
+          result.kind === 'gallery' &&
+          result.color === selectedColor &&
+          result.pose.toLowerCase().includes('action')
+      ) ||
+      generatedResults.find(
+        (result) => result.kind === 'hero' && result.color === selectedColor
+      );
+
+    return generatedAnchor?.url || findWooProductAnchorImage();
   };
 
   const buildReferencePromptForImages = (
@@ -3043,7 +3153,7 @@ export default function Home() {
       return;
     }
 
-    const syncResults = includedSyncResults;
+    const syncResults = syncResultsForCurrentMode;
 
     if (syncResults.length === 0) {
       setWooSyncMessage('Non hai selezionato nessuna immagine da sincronizzare.');
@@ -3108,6 +3218,12 @@ export default function Home() {
         applyVisualStep();
       }, 1400);
 
+      const selectedSyncScenarioLabels = isIntegrativeMode
+        ? syncResults
+            .filter((result) => result.kind === 'extra')
+            .map((result) => result.pose)
+        : selectedAdditionalScenarioSettings.map((scenario) => scenario.label);
+
       const res = await fetch('/api/sync-woocommerce', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -3116,21 +3232,21 @@ export default function Home() {
           productId: selectedProduct.id,
           productName: selectedProduct.name,
           generatedResults: syncReadyResults,
-          productDescriptionHtml: generatedDescriptionHtml,
-          productShortDescriptionHtml: generatedShortDescriptionHtml,
-          acfValues,
-          selectedAdditionalScenarioLabels: selectedAdditionalScenarioSettings.map(
-            (scenario) => scenario.label
-          ),
+          productDescriptionHtml: isIntegrativeMode ? '' : generatedDescriptionHtml,
+          productShortDescriptionHtml: isIntegrativeMode ? '' : generatedShortDescriptionHtml,
+          acfValues: isIntegrativeMode ? {} : acfValues,
+          selectedAdditionalScenarioLabels: selectedSyncScenarioLabels,
           selectedUrbanExtraScenarioLocation:
-            selectedAdditionalScenarioSettings.length > 0 ? selectedUrbanExtraScenarioLocation : '',
+            selectedSyncScenarioLabels.length > 0 ? selectedUrbanExtraScenarioLocation : '',
           selectedExtraUrbanScenarioLocation:
-            selectedAdditionalScenarioSettings.length > 0 ? selectedExtraUrbanScenarioLocation : '',
-          primarySyncResultKey: selectedPrimarySyncResult?.key || '',
-          companionProductIds: [companionProductId, secondaryCompanionProductId].filter(
-            (value): value is number => Boolean(value)
-          ),
-          syncMode: wooSyncMode,
+            selectedSyncScenarioLabels.length > 0 ? selectedExtraUrbanScenarioLocation : '',
+          primarySyncResultKey: isIntegrativeMode ? '' : selectedPrimarySyncResult?.key || '',
+          companionProductIds: isIntegrativeMode
+            ? []
+            : [companionProductId, secondaryCompanionProductId].filter(
+                (value): value is number => Boolean(value)
+              ),
+          syncMode: isIntegrativeMode ? 'append-only' : wooSyncMode,
         }),
       });
       const rawSyncBody = await res.text();
@@ -3176,9 +3292,11 @@ export default function Home() {
       setWooSyncPhase(data.phase || 'In coda');
 
         if (data.status === 'completed') {
-          setSyncedProductIds((prev) =>
-            prev.includes(selectedProduct.id) ? prev : [...prev, selectedProduct.id]
-          );
+          if (!isIntegrativeMode) {
+            setSyncedProductIds((prev) =>
+              prev.includes(selectedProduct.id) ? prev : [...prev, selectedProduct.id]
+            );
+          }
           const syncedCover =
           selectedPrimarySyncResult ||
           galleryResults.find((result) => result.pose === 'In Action') ||
@@ -3186,7 +3304,9 @@ export default function Home() {
           syncResults[0] ||
           null;
 
-        if (syncedCover) {
+        if (isIntegrativeMode) {
+          await loadProducts(true);
+        } else if (syncedCover) {
           setProducts((prev) =>
             prev.map((product) =>
               product.id === selectedProduct.id
@@ -3242,9 +3362,11 @@ export default function Home() {
         setWooSyncPhase(statusData.phase || null);
 
         if (statusData.status === 'completed') {
-          setSyncedProductIds((prev) =>
-            prev.includes(selectedProduct.id) ? prev : [...prev, selectedProduct.id]
-          );
+          if (!isIntegrativeMode) {
+            setSyncedProductIds((prev) =>
+              prev.includes(selectedProduct.id) ? prev : [...prev, selectedProduct.id]
+            );
+          }
           const syncedCover =
             selectedPrimarySyncResult ||
             galleryResults.find((result) => result.pose === 'In Action') ||
@@ -3252,7 +3374,9 @@ export default function Home() {
             syncResults[0] ||
             null;
 
-          if (syncedCover) {
+          if (isIntegrativeMode) {
+            await loadProducts(true);
+          } else if (syncedCover) {
             setProducts((prev) =>
               prev.map((product) =>
                 product.id === selectedProduct.id
@@ -3351,6 +3475,18 @@ export default function Home() {
       setSelectedPrimarySyncResultKey('');
     }
   }, [excludedSyncResultKeys, generatedResults, selectedPrimarySyncResultKey]);
+
+  useEffect(() => {
+    if (generationMode === 'integrative-only') {
+      setWooSyncMode('append-only');
+      setSelectedPrimarySyncResultKey('');
+      return;
+    }
+
+    if (wooSyncMode === 'append-only') {
+      setWooSyncMode('replace');
+    }
+  }, [generationMode, wooSyncMode]);
 
   const requestImage = async (args: {
     key: string; kind: 'hero' | 'front' | 'gallery' | 'extra' | 'alternate'; pose: string; posePrompt: string; targetColor: string; anchorImageUrl?: string; anchorInstruction?: string; scenarioOverrideLabel?: string; scenarioOverrideReferenceUrl?: string; genderOverride?: string; additionalCorrectionPrompt?: string;
@@ -3575,7 +3711,9 @@ export default function Home() {
           ),
           normalizedAnchorImageUrl
             ? `If an anchor image is provided, use it only for model identity, expression, framing, and continuity. Never use it as the source of truth for garment design, garment color, trims, bows, decorations, or construction details. ${args.anchorInstruction || ''}`
-            : 'Create a clean front hero image for the requested color.',
+            : args.kind === 'extra'
+              ? 'Create a fresh lifestyle image for the requested special-occasion scenario. Do not frame it as a front hero catalog image.'
+              : 'Create a clean front hero image for the requested color.',
           `Pose: ${args.posePrompt}.`,
         ].join(' '),
     };
@@ -3676,6 +3814,61 @@ export default function Home() {
         targetColor: selectedColor,
       });
       setGeneratedResults([hero]);
+    } catch (err: unknown) {
+      setGenError(err instanceof Error ? err.message : 'Errore sconosciuto');
+    } finally {
+      setStage('idle');
+    }
+  };
+
+  const generateIntegrativeOnly = async () => {
+    if (!selectedProduct || !isIntegrativeSetupComplete) {
+      setGenError('Seleziona almeno una occasione d’uso e completa i riferimenti del prodotto.');
+      return;
+    }
+
+    setStartedProductIds((prev) =>
+      prev.includes(selectedProduct.id) ? prev : [...prev, selectedProduct.id]
+    );
+    setStage('production');
+    setGenError(null);
+    setDescriptionError(null);
+    setGeneratedDescriptionHtml('');
+    setGeneratedShortDescriptionHtml('');
+    setSelectedPrimarySyncResultKey('');
+    setWooSyncMode('append-only');
+    setActiveTab('gallery');
+    scrollToSection('step-5-output', 80);
+
+    try {
+      let next: GeneratedResult[] = [...generatedResults];
+      const anchorImageUrl = findBestIntegrativeAnchorImage();
+
+      for (const scenario of selectedAdditionalScenarioSettings) {
+        const extraKey = `extra-${selectedColor}-${sanitizeFilePart(scenario.label)}`;
+
+        if (next.some((result) => result.key === extraKey)) {
+          continue;
+        }
+
+        next = upsertGeneratedResult(
+          next,
+          await requestImage({
+            key: extraKey,
+            kind: 'extra',
+            pose: scenario.label,
+            posePrompt: 'full body lifestyle fashion photo, premium editorial storytelling, the model is actively doing something natural and believable that clearly fits the requested scenario and environment',
+            targetColor: selectedColor,
+            anchorImageUrl,
+            anchorInstruction: anchorImageUrl
+              ? `Use the anchor only for continuity of model identity, expression, and framing. Keep the original product references as the only authority for garment design and color. Generate a fresh new lifestyle image for "${scenario.label}" without changing the garment.`
+              : undefined,
+            scenarioOverrideLabel: scenario.label,
+            scenarioOverrideReferenceUrl: shootingReferenceImages[scenario.id],
+          })
+        );
+        setGeneratedResults([...next]);
+      }
     } catch (err: unknown) {
       setGenError(err instanceof Error ? err.message : 'Errore sconosciuto');
     } finally {
@@ -4005,18 +4198,20 @@ export default function Home() {
             />
             <span>{isExcludedFromSync ? 'Esclusa dalla sync WooCommerce' : 'Includi nella sync WooCommerce'}</span>
           </label>
-          <label className="flex items-center gap-2 rounded-xl border border-[#D7D9DD] bg-white px-3 py-2 text-[11px] font-bold text-[#103D66]">
-            <input
-              type="checkbox"
-              checked={selectedPrimarySyncResultKey === result.key}
-              onChange={() => togglePrimarySyncSelection(result.key)}
-            />
-            <span>
-              {selectedPrimarySyncResultKey === result.key
-                ? 'Immagine principale WooCommerce'
-                : 'Usa come immagine principale WooCommerce'}
-            </span>
-          </label>
+          {!isIntegrativeMode && (
+            <label className="flex items-center gap-2 rounded-xl border border-[#D7D9DD] bg-white px-3 py-2 text-[11px] font-bold text-[#103D66]">
+              <input
+                type="checkbox"
+                checked={selectedPrimarySyncResultKey === result.key}
+                onChange={() => togglePrimarySyncSelection(result.key)}
+              />
+              <span>
+                {selectedPrimarySyncResultKey === result.key
+                  ? 'Immagine principale WooCommerce'
+                  : 'Usa come immagine principale WooCommerce'}
+              </span>
+            </label>
+          )}
           <button
             type="button"
             onClick={() =>
@@ -4527,8 +4722,47 @@ export default function Home() {
           ) : activeTab === 'setup' ? (
             <div className="space-y-6 pt-6">
               <div className="rounded-2xl border border-[#D7D9DD] bg-white p-6 shadow-sm">
+                <div className="mb-4 font-bold">Modalita di lavoro</div>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => setGenerationMode('full-set')}
+                    disabled={isBusy}
+                    className={`rounded-2xl border px-4 py-4 text-left transition-all ${
+                      generationMode === 'full-set'
+                        ? 'border-[#103D66] bg-[#EEF4F7] text-[#103D66]'
+                        : 'border-[#D7D9DD] bg-white text-slate-600'
+                    } ${isBusy ? 'opacity-60' : ''}`}
+                  >
+                    <div className="text-sm font-black">Set fotografico completo</div>
+                    <div className="mt-1 text-xs leading-5">
+                      Hero, frontali, gallery, occasioni extra, descrizioni e sync completa.
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGenerationMode('integrative-only')}
+                    disabled={isBusy}
+                    className={`rounded-2xl border px-4 py-4 text-left transition-all ${
+                      generationMode === 'integrative-only'
+                        ? 'border-[#6DA34D] bg-[#F0F7EC] text-[#284E1D]'
+                        : 'border-[#D7D9DD] bg-white text-slate-600'
+                    } ${isBusy ? 'opacity-60' : ''}`}
+                  >
+                    <div className="text-sm font-black">Solo foto integrative</div>
+                    <div className="mt-1 text-xs leading-5">
+                      Genera solo occasioni d&apos;uso e le aggiunge in coda alla gallery WooCommerce.
+                    </div>
+                  </button>
+                </div>
+              </div>
+              <div className="rounded-2xl border border-[#D7D9DD] bg-white p-6 shadow-sm">
                 <div className="mb-4 font-bold">Step 1. Configurazione e colore target</div>
-                <p className="mb-4 text-sm text-slate-500">Ordine menu: eta, genere, etnia, scenario, colore target unico. Questo colore verra usato sia per la hero front sia per back, side e in action.</p>
+                <p className="mb-4 text-sm text-slate-500">
+                  {isIntegrativeMode
+                    ? 'Completa eta, genere, etnia, colore e reference. Verranno generate solo le occasioni d’uso selezionate.'
+                    : 'Ordine menu: eta, genere, etnia, scenario, colore target unico. Questo colore verra usato sia per la hero front sia per back, side e in action.'}
+                </p>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                   <select value={job.modelAge} onChange={(e) => updateJob('modelAge', e.target.value)} className="rounded-xl border-2 border-slate-100 bg-slate-50 p-3 text-sm font-bold">
                     {selectedProduct.sizes.length > 1 && <option value="">Seleziona eta/taglia</option>}
@@ -4994,8 +5228,114 @@ export default function Home() {
                 </div>
               </div>
 
+              {isIntegrativeMode && (
+                <div className="rounded-2xl border border-[#D7D9DD] bg-white p-6 shadow-sm">
+                  <div className="mb-4 font-bold">Occasioni d&apos;uso da integrare</div>
+                  <div className="mb-4 rounded-2xl border border-[#D7D9DD] bg-[#F8FAFB] p-3">
+                    <div className="mb-2 text-[10px] font-black uppercase tracking-wide text-[#4C6583]">
+                      Location per scene urbane ed extra urbane
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <div className="mb-2 text-[10px] font-black uppercase tracking-wide text-[#6C7D92]">
+                          Urbane
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {urbanExtraScenarioLocationOptions.map((location) => (
+                            <button
+                              key={location.label}
+                              type="button"
+                              onClick={() => setSelectedUrbanExtraScenarioLocation(location.label)}
+                              disabled={isBusy}
+                              className={`rounded-full px-3 py-2 text-xs font-black transition-all ${
+                                selectedUrbanExtraScenarioLocation === location.label
+                                  ? 'bg-[#103D66] text-white'
+                                  : 'border border-[#D7D9DD] bg-white text-[#103D66]'
+                              } ${isBusy ? 'opacity-60' : ''}`}
+                            >
+                              {location.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="mb-2 text-[10px] font-black uppercase tracking-wide text-[#6C7D92]">
+                          Extra urbane
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {extraUrbanExtraScenarioLocationOptions.map((location) => (
+                            <button
+                              key={location.label}
+                              type="button"
+                              onClick={() => setSelectedExtraUrbanScenarioLocation(location.label)}
+                              disabled={isBusy}
+                              className={`rounded-full px-3 py-2 text-xs font-black transition-all ${
+                                selectedExtraUrbanScenarioLocation === location.label
+                                  ? 'bg-[#6DA34D] text-white'
+                                  : 'border border-[#D7D9DD] bg-white text-[#284E1D]'
+                              } ${isBusy ? 'opacity-60' : ''}`}
+                            >
+                              {location.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    {[
+                      { title: 'Indoor', items: indoorRealLifeSettings },
+                      { title: 'Urbane', items: urbanRealLifeSettings },
+                      { title: 'Extra urbane', items: extraUrbanRealLifeSettings },
+                    ].map((group) => (
+                      <div key={group.title}>
+                        <div className="mb-2 text-[10px] font-black uppercase tracking-wide text-[#6C7D92]">
+                          {group.title}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {group.items.map((scenario) => {
+                            const existingCount = getExistingScenarioImageCount(scenario.label);
+
+                            return (
+                              <button
+                                key={scenario.id}
+                                type="button"
+                                onClick={() => toggleAdditionalScenario(scenario.id)}
+                                disabled={isBusy}
+                                className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-black transition-all ${
+                                  selectedAdditionalScenarios.includes(scenario.id)
+                                    ? 'bg-[#103D66] text-white'
+                                    : 'border border-[#D7D9DD] bg-white text-[#103D66]'
+                                } ${isBusy ? 'opacity-60' : ''}`}
+                              >
+                                <span>{scenario.label}</span>
+                                {existingCount > 0 && (
+                                  <span
+                                    className={`rounded-full px-2 py-0.5 text-[9px] uppercase ${
+                                      selectedAdditionalScenarios.includes(scenario.id)
+                                        ? 'bg-white/20 text-white'
+                                        : 'bg-[#F0F7EC] text-[#284E1D]'
+                                    }`}
+                                  >
+                                    Già presente
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div id="generate-hero-cta" className="rounded-2xl border border-[#D7D9DD] bg-white p-6 shadow-sm">
-                <div className="mb-4 font-bold">Genera la hero front del colore scelto</div>
+                <div className="mb-4 font-bold">
+                  {isIntegrativeMode
+                    ? 'Genera solo le foto integrative selezionate'
+                    : 'Genera la hero front del colore scelto'}
+                </div>
                 <div className="mb-4">
                   <label
                     htmlFor="additional-image-instructions"
@@ -5012,16 +5352,47 @@ export default function Home() {
                     className="min-h-[112px] w-full rounded-2xl border border-[#D7D9DD] bg-[#F8FAFB] px-4 py-3 text-sm text-[#103D66] outline-none transition focus:border-[#103D66] focus:bg-white"
                   />
                   <p className="mt-2 text-xs text-slate-500">
-                    Queste istruzioni vengono considerate in tutte le immagini generate per il prodotto, a partire dalla hero front.
+                    {isIntegrativeMode
+                      ? 'Queste istruzioni vengono considerate solo nelle foto integrative generate in questa sessione.'
+                      : 'Queste istruzioni vengono considerate in tutte le immagini generate per il prodotto, a partire dalla hero front.'}
                   </p>
                 </div>
-                <button onClick={startGeneration} disabled={isBusy || !isSetupComplete} className={`flex w-full items-center justify-center gap-3 rounded-2xl py-5 text-lg font-black text-white ${isBusy || !isSetupComplete ? 'bg-slate-400' : 'bg-[#103D66]'}`}>
-                  {stage === 'hero' ? <><RefreshCw className="animate-spin" size={24} /> Generazione hero...</> : <><Wand2 size={24} /> Genera Hero Front</>}
+                <button
+                  onClick={isIntegrativeMode ? generateIntegrativeOnly : startGeneration}
+                  disabled={
+                    isBusy ||
+                    (isIntegrativeMode
+                      ? !isIntegrativeSetupComplete || isIntegrativeGenerationComplete
+                      : !isSetupComplete)
+                  }
+                  className={`flex w-full items-center justify-center gap-3 rounded-2xl py-5 text-lg font-black text-white ${
+                    isBusy ||
+                    (isIntegrativeMode
+                      ? !isIntegrativeSetupComplete || isIntegrativeGenerationComplete
+                      : !isSetupComplete)
+                      ? 'bg-slate-400'
+                      : isIntegrativeMode
+                        ? 'bg-[#6DA34D]'
+                        : 'bg-[#103D66]'
+                  }`}
+                >
+                  {stage === 'hero' ? (
+                    <><RefreshCw className="animate-spin" size={24} /> Generazione hero...</>
+                  ) : stage === 'production' && isIntegrativeMode ? (
+                    <><RefreshCw className="animate-spin" size={24} /> Generazione integrative...</>
+                  ) : isIntegrativeMode && isIntegrativeGenerationComplete ? (
+                    <><CheckCircle2 size={24} /> Integrative completate</>
+                  ) : isIntegrativeMode ? (
+                    <><Wand2 size={24} /> Genera foto integrative</>
+                  ) : (
+                    <><Wand2 size={24} /> Genera Hero Front</>
+                  )}
                 </button>
               </div>
             </div>
           ) : (
             <div className="space-y-6 pt-6">
+              {!isIntegrativeMode && (
               <div id="step-4-hero" className="rounded-2xl border border-[#D7D9DD] bg-white p-6 shadow-sm">
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <button
@@ -5249,6 +5620,7 @@ export default function Home() {
                   </div>
                 )}
               </div>
+              )}
 
               <div id="step-5-output" className="rounded-2xl border border-[#D7D9DD] bg-white p-6 shadow-sm">
                 <div className="mb-4 flex items-center justify-between gap-3">
@@ -5269,19 +5641,23 @@ export default function Home() {
                   </div>
                 )}
                 <div className="space-y-8">
-                  <div>
-                    <div className="mb-3 flex items-center justify-between"><h4 className="font-bold">Frontali per tutti i colori</h4><span className="text-xs text-slate-400">{frontResults.length}/{selectedProduct.colors.length}</span></div>
-                    {frontResults.length === 0 && stage !== 'production' ? <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-slate-400">In attesa di approvazione.</div> : <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">{frontResults.map((r) => renderGeneratedResultCard(r))}{stage === 'production' && selectedProduct && Array.from({ length: Math.max(selectedProduct.colors.length - frontResults.length, 0) }, (_, index) => <LoadingCard key={`front-loading-${index}`} label="Front Loading" />)}</div>}
-                  </div>
-                  <div>
-                    <div className="mb-3 flex items-center justify-between"><h4 className="font-bold">Back / Side / Action</h4><span className="rounded-full bg-[#EEF1F4] px-3 py-1 text-[10px] font-black uppercase">{selectedColor}</span></div>
-                    {galleryResults.length === 0 && stage !== 'production' ? <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-slate-400">In attesa di approvazione.</div> : <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">{galleryResults.map((r) => renderGeneratedResultCard(r))}{stage === 'production' && Array.from({ length: Math.max(galleryPoses.length - galleryResults.length, 0) }, (_, index) => <LoadingCard key={`gallery-loading-${index}`} label="Gallery Loading" />)}</div>}
-                  </div>
-                  {isUnisexProduct && (
-                    <div>
-                      <div className="mb-3 flex items-center justify-between"><h4 className="font-bold">Varianti altro genere</h4><span className="rounded-full bg-[#EEF1F4] px-3 py-1 text-[10px] font-black uppercase">{alternateGender || 'Altro genere'}</span></div>
-                      {alternateGenderResults.length === 0 && stage !== 'production' ? <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-slate-400">Verranno generate automaticamente per i prodotti unisex.</div> : <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">{alternateGenderResults.map((r) => renderGeneratedResultCard(r))}{stage === 'production' && Array.from({ length: Math.max(2 - alternateGenderResults.length, 0) }, (_, index) => <LoadingCard key={`alternate-loading-${index}`} label="Altro Genere" />)}</div>}
-                    </div>
+                  {!isIntegrativeMode && (
+                    <>
+                      <div>
+                        <div className="mb-3 flex items-center justify-between"><h4 className="font-bold">Frontali per tutti i colori</h4><span className="text-xs text-slate-400">{frontResults.length}/{selectedProduct.colors.length}</span></div>
+                        {frontResults.length === 0 && stage !== 'production' ? <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-slate-400">In attesa di approvazione.</div> : <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">{frontResults.map((r) => renderGeneratedResultCard(r))}{stage === 'production' && selectedProduct && Array.from({ length: Math.max(selectedProduct.colors.length - frontResults.length, 0) }, (_, index) => <LoadingCard key={`front-loading-${index}`} label="Front Loading" />)}</div>}
+                      </div>
+                      <div>
+                        <div className="mb-3 flex items-center justify-between"><h4 className="font-bold">Back / Side / Action</h4><span className="rounded-full bg-[#EEF1F4] px-3 py-1 text-[10px] font-black uppercase">{selectedColor}</span></div>
+                        {galleryResults.length === 0 && stage !== 'production' ? <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-slate-400">In attesa di approvazione.</div> : <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">{galleryResults.map((r) => renderGeneratedResultCard(r))}{stage === 'production' && Array.from({ length: Math.max(galleryPoses.length - galleryResults.length, 0) }, (_, index) => <LoadingCard key={`gallery-loading-${index}`} label="Gallery Loading" />)}</div>}
+                      </div>
+                      {isUnisexProduct && (
+                        <div>
+                          <div className="mb-3 flex items-center justify-between"><h4 className="font-bold">Varianti altro genere</h4><span className="rounded-full bg-[#EEF1F4] px-3 py-1 text-[10px] font-black uppercase">{alternateGender || 'Altro genere'}</span></div>
+                          {alternateGenderResults.length === 0 && stage !== 'production' ? <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-slate-400">Verranno generate automaticamente per i prodotti unisex.</div> : <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">{alternateGenderResults.map((r) => renderGeneratedResultCard(r))}{stage === 'production' && Array.from({ length: Math.max(2 - alternateGenderResults.length, 0) }, (_, index) => <LoadingCard key={`alternate-loading-${index}`} label="Altro Genere" />)}</div>}
+                        </div>
+                      )}
+                    </>
                   )}
                   <div>
                     <div className="mb-3 flex items-center justify-between"><h4 className="font-bold">Ambientazioni extra</h4><span className="text-xs text-slate-400">{extraScenarioResults.length}/{selectedAdditionalScenarioSettings.length}</span></div>
@@ -5290,6 +5666,8 @@ export default function Home() {
                 </div>
               </div>
 
+              {!isIntegrativeMode && (
+                <>
               <div className="rounded-2xl border border-[#D7D9DD] bg-white p-6 shadow-sm">
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div className="font-bold">Step 6. Descrizione prodotto</div>
@@ -5409,40 +5787,54 @@ export default function Home() {
                   </div>
                 )}
               </div>
+                </>
+              )}
 
               <div className="rounded-2xl border border-[#D7D9DD] bg-white p-4 shadow-sm">
-                <div className="mb-2 text-sm font-bold">Cosa vuoi fare con le immagini preesistenti?</div>
-                <div className="mb-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setWooSyncMode('replace')}
-                    disabled={isSyncingWoo}
-                    className={`rounded-full px-4 py-2 text-xs font-black uppercase transition-all ${
-                      wooSyncMode === 'replace'
-                        ? 'bg-[#103D66] text-white'
-                        : 'border border-[#D7D9DD] bg-white text-[#103D66]'
-                    } ${isSyncingWoo ? 'opacity-60' : ''}`}
-                  >
-                    Sostituiscile con queste nuove
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setWooSyncMode('keep-existing')}
-                    disabled={isSyncingWoo}
-                    className={`rounded-full px-4 py-2 text-xs font-black uppercase transition-all ${
-                      wooSyncMode === 'keep-existing'
-                        ? 'bg-[#103D66] text-white'
-                        : 'border border-[#D7D9DD] bg-white text-[#103D66]'
-                    } ${isSyncingWoo ? 'opacity-60' : ''}`}
-                  >
-                    Lasciale nella galleria immagini
-                  </button>
+                <div className="mb-2 text-sm font-bold">
+                  {isIntegrativeMode
+                    ? 'Sincronizzazione integrativa'
+                    : 'Cosa vuoi fare con le immagini preesistenti?'}
                 </div>
-                <p className="mb-4 text-sm text-slate-500">
-                  Se scegli la prima opzione, la galleria prodotto viene rimpiazzata dal nuovo set. Se scegli la seconda, il nuovo set viene aggiunto lasciando anche le immagini gia presenti.
-                </p>
+                {isIntegrativeMode ? (
+                  <p className="mb-4 text-sm text-slate-500">
+                    Le nuove foto verranno aggiunte in coda alla gallery WooCommerce. La prima immagine prodotto, le immagini variazione e le descrizioni non verranno modificate.
+                  </p>
+                ) : (
+                  <>
+                    <div className="mb-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setWooSyncMode('replace')}
+                        disabled={isSyncingWoo}
+                        className={`rounded-full px-4 py-2 text-xs font-black uppercase transition-all ${
+                          wooSyncMode === 'replace'
+                            ? 'bg-[#103D66] text-white'
+                            : 'border border-[#D7D9DD] bg-white text-[#103D66]'
+                        } ${isSyncingWoo ? 'opacity-60' : ''}`}
+                      >
+                        Sostituiscile con queste nuove
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setWooSyncMode('keep-existing')}
+                        disabled={isSyncingWoo}
+                        className={`rounded-full px-4 py-2 text-xs font-black uppercase transition-all ${
+                          wooSyncMode === 'keep-existing'
+                            ? 'bg-[#103D66] text-white'
+                            : 'border border-[#D7D9DD] bg-white text-[#103D66]'
+                        } ${isSyncingWoo ? 'opacity-60' : ''}`}
+                      >
+                        Lasciale nella galleria immagini
+                      </button>
+                    </div>
+                    <p className="mb-4 text-sm text-slate-500">
+                      Se scegli la prima opzione, la galleria prodotto viene rimpiazzata dal nuovo set. Se scegli la seconda, il nuovo set viene aggiunto lasciando anche le immagini gia presenti.
+                    </p>
+                  </>
+                )}
                 <div className="mb-4 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-500">
-                  Immagini incluse nella sincronizzazione: <span className="font-black text-[#103D66]">{includedSyncResults.length}</span> su {generatedResults.length}
+                  Immagini incluse nella sincronizzazione: <span className="font-black text-[#103D66]">{syncResultsForCurrentMode.length}</span> su {generatedResults.length}
                 </div>
                 <div className="mb-4 flex flex-wrap items-center gap-2">
                   {selectedProduct?.backendUrl && (
@@ -5466,7 +5858,7 @@ export default function Home() {
                     </a>
                   )}
                 </div>
-                <button onClick={syncToWooCommerce} disabled={!hasLoadedSession || includedSyncResults.length === 0 || isSyncingWoo} className="flex w-full items-center justify-center gap-3 rounded-2xl bg-[#6DA34D] py-5 text-lg font-black text-white disabled:bg-slate-300"><Upload size={24} /> {isSyncingWoo ? 'Sincronizzazione in corso...' : 'Sincronizza su WooCommerce'}</button>
+                <button onClick={syncToWooCommerce} disabled={!hasLoadedSession || syncResultsForCurrentMode.length === 0 || isSyncingWoo} className="flex w-full items-center justify-center gap-3 rounded-2xl bg-[#6DA34D] py-5 text-lg font-black text-white disabled:bg-slate-300"><Upload size={24} /> {isSyncingWoo ? 'Sincronizzazione in corso...' : 'Sincronizza su WooCommerce'}</button>
               </div>
             </div>
           )}
