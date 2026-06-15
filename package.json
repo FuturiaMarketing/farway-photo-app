@@ -12,9 +12,13 @@
     "woo:media:cleanup:scan": "node scripts/farway-clean-unused-app-media.cjs",
     "woo:media:cleanup:apply-gallery": "node scripts/farway-clean-unused-app-media.cjs --apply-gallery",
     "woo:media:cleanup:apply-all": "node scripts/farway-clean-unused-app-media.cjs --apply-gallery --apply-delete",
-    "farway:erp:legends": "node scripts/farway-build-color-size-legends.cjs",
-    "farway:erp:reconcile": "node scripts/farway-erp-reconcile-products.cjs",
-    "farway:erp:apply": "node scripts/farway-erp-reconcile-products.cjs --apply --confirm-apply FARWAY_ERP_IMPORT_APPROVED"
+    "farway:erp:legends": "node _legacy-erp-legende-review/scripts/farway-build-color-size-legends.cjs",
+    "farway:erp:reconcile": "node _legacy-erp-legende-review/scripts/farway-erp-reconcile-products.cjs",
+    "farway:erp:apply": "node _legacy-erp-legende-review/scripts/farway-erp-reconcile-products.cjs --apply --confirm-apply FARWAY_ERP_IMPORT_APPROVED",
+    "farway:drafts:consolidate": "node scripts/farway-draft-consolidate.cjs",
+    "farway:drafts:apply": "node scripts/farway-draft-consolidate.cjs --apply --confirm FARWAY_DRAFTS_CONSOLIDATED_APPROVED",
+    "farway:drafts:acf:plan": "node scripts/farway-draft-acf-populate.cjs",
+    "farway:drafts:acf:apply": "node scripts/farway-draft-acf-populate.cjs --apply --confirm FARWAY_DRAFTS_ACF_POPULATE_APPROVED"
   },
   "dependencies": {
     "@woocommerce/woocommerce-rest-api": "^1.0.2",

@@ -16,6 +16,11 @@ import {
   writeBinaryAsset,
 } from '@/lib/server/db';
 import { getResolvedWooCommerceSettings } from '@/lib/server/woocommerce-settings';
+import {
+  farwayOccasionDusoFieldKey,
+  farwayOccasionDusoFieldName,
+  mapFarwayOccasionLabelsToValues,
+} from '@/lib/farway-occasions';
 
 type GeneratedResult = {
   key: string;
@@ -41,7 +46,7 @@ type SyncRequest = {
   selectedExtraUrbanScenarioLocation?: string;
   primarySyncResultKey?: string;
   companionProductIds?: number[];
-  syncMode?: 'replace' | 'keep-existing';
+  syncMode?: 'replace' | 'keep-existing' | 'append-only';
 };
 
 type WooVariation = {
@@ -90,7 +95,7 @@ type SyncJob = {
   phase: string;
   message: string | null;
   result?: {
-    syncMode: 'replace' | 'keep-existing';
+    syncMode: 'replace' | 'keep-existing' | 'append-only';
     updatedVariationIds: number[];
     productImageCount: number;
     crossSellCount: number;
@@ -113,22 +118,6 @@ type GeminiTextResponse = {
 
 const syncJobs = new Map<string, SyncJob>();
 const syncJobNamespace = 'sync-jobs';
-const occasionDusoFieldName = 'occasione_duso';
-const occasionDusoChoiceByLabel = new Map<string, string>([
-  ['a casa dei nonni', 'casa_nonni'],
-  ['passeggiata con mamma e papa', 'passeggiata_famiglia'],
-  ['passeggiata con mamma e papà', 'passeggiata_famiglia'],
-  ['compleanno', 'compleanno'],
-  ['il vestito della domenica', 'vestito_domenica'],
-  ["una sera d'estate: gelato con gli amici", 'sera_estate_gelato'],
-  ['una sera d’estate: gelato con gli amici', 'sera_estate_gelato'],
-  ['pranzi semplici ed eleganti', 'occasioni_eleganti'],
-  ['cene o pranzi semplici ed eleganti', 'occasioni_eleganti'],
-  ['cerimonia in famiglia', 'cerimonia_in-famiglia'],
-  ['picnic al parco', 'picnic_al_parco'],
-  ['pomeriggio al museo', 'pomeriggio_al_museo'],
-  ['weekend al lago', 'weekend_al_lago'],
-]);
 
 function sanitizeSegment(value: string) {
   return (
@@ -286,6 +275,63 @@ function normalizeTagName(value: string) {
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function normalizeImageIdentity(value: unknown) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/-\d+x\d+(?=\.[a-z0-9]+(?:$|\?))/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function extractFilenameFromUrl(value: unknown) {
+  const raw = String(value || '').trim();
+
+  if (!raw) {
+    return '';
+  }
+
+  try {
+    const url = new URL(raw, 'https://farway.invalid');
+    return decodeURIComponent(url.pathname.split('/').pop() || '');
+  } catch {
+    return decodeURIComponent(raw.split(/[?#]/)[0].split(/[\\/]/).pop() || '');
+  }
+}
+
+function buildExistingImageIdentitySet(images: NonNullable<WooProductResponse['images']>) {
+  return new Set(
+    images.flatMap((image) =>
+      [image.name, image.alt, image.src, extractFilenameFromUrl(image.src)]
+        .map((value) => normalizeImageIdentity(value))
+        .filter(Boolean)
+    )
+  );
+}
+
+function imageAssetAlreadyExists(
+  existingImageIdentities: Set<string>,
+  asset: { src: string; name: string; alt: string }
+) {
+  return [asset.name, asset.alt, asset.src, extractFilenameFromUrl(asset.src)]
+    .map((value) => normalizeImageIdentity(value))
+    .filter(Boolean)
+    .some((value) => existingImageIdentities.has(value));
+}
+
+function normalizeStringArray(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item || '').trim()).filter(Boolean);
+  }
+
+  if (typeof value === 'string' && value.trim().length > 0) {
+    return [value.trim()];
+  }
+
+  return [];
 }
 
 function escapeHtml(value: string) {
@@ -447,13 +493,7 @@ async function generateWooShortDescriptionMarkdown(
 }
 
 function mapScenarioLabelsToOccasionValues(labels: string[]) {
-  return Array.from(
-    new Set(
-      labels
-        .map((label) => occasionDusoChoiceByLabel.get(normalizeOccasionLabel(label)))
-        .filter((value): value is string => Boolean(value))
-    )
-  );
+  return mapFarwayOccasionLabelsToValues(labels);
 }
 
 function buildPublicBaseUrl(req: Request) {
@@ -617,28 +657,40 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
       throw new Error('Configurazione WooCommerce mancante. Salvala prima nelle impostazioni.');
     }
 
-    const syncMode = body.syncMode === 'keep-existing' ? 'keep-existing' : 'replace';
-    const companionProductIds = Array.from(
-      new Set(
-        (body.companionProductIds || [])
-          .filter((value): value is number => Number.isInteger(value) && value > 0 && value !== body.productId)
-      )
-    );
+    const syncMode =
+      body.syncMode === 'append-only'
+        ? 'append-only'
+        : body.syncMode === 'keep-existing'
+          ? 'keep-existing'
+          : 'replace';
+    const isAppendOnlySync = syncMode === 'append-only';
+    const companionProductIds = isAppendOnlySync
+      ? []
+      : Array.from(
+          new Set(
+            (body.companionProductIds || [])
+              .filter((value): value is number => Number.isInteger(value) && value > 0 && value !== body.productId)
+          )
+        );
     const selectedUrbanExtraScenarioLocation = String(
       body.selectedUrbanExtraScenarioLocation || ''
     ).trim();
     const selectedExtraUrbanScenarioLocation = String(
       body.selectedExtraUrbanScenarioLocation || ''
     ).trim();
-    const descriptionHtml = String(body.productDescriptionHtml || '').trim();
+    const descriptionHtml = isAppendOnlySync ? '' : String(body.productDescriptionHtml || '').trim();
     const shortDescriptionHtml =
-      String(body.productShortDescriptionHtml || '').trim() ||
-      markdownToWooHtml(
-        await generateWooShortDescriptionMarkdown(
-          body.productName,
-          stripHtml(descriptionHtml)
-        )
-      );
+      isAppendOnlySync
+        ? ''
+        : String(body.productShortDescriptionHtml || '').trim() ||
+          (descriptionHtml
+            ? markdownToWooHtml(
+                await generateWooShortDescriptionMarkdown(
+                  body.productName,
+                  stripHtml(descriptionHtml)
+                )
+              )
+            : '');
     const occasioneDusoValues = mapScenarioLabelsToOccasionValues(
       body.selectedAdditionalScenarioLabels || []
     );
@@ -662,7 +714,7 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
       galleryResults.find((result) => result.pose.toLowerCase().includes('action')) ||
       body.generatedResults.find((result) => result.pose.toLowerCase().includes('action'));
 
-    if (!actionResult) {
+    if (!isAppendOnlySync && !actionResult) {
       throw new Error('Manca una foto "In Action" da usare come immagine predefinita.');
     }
 
@@ -811,7 +863,7 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
       applicableAcfFields
     );
     const allApplicableAcfFields = [...applicableAcfFields, ...inferredAcfFields].filter(
-      (field) => field.name !== occasionDusoFieldName
+      (field) => field.name !== farwayOccasionDusoFieldName
     );
     const submittedAcfValues = body.acfValues || {};
     const knownColors = Array.from(new Set(frontResults.map((result) => result.color)));
@@ -833,10 +885,12 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
 
     const featuredResult = selectedPrimaryResult || actionResult;
 
-    const desiredProductImages = [
-      featuredResult,
-      ...galleryOrder,
-    ].map((result) => ({
+    const desiredProductImages = (isAppendOnlySync
+      ? extraResults
+      : [featuredResult, ...galleryOrder].filter((result): result is GeneratedResult =>
+          Boolean(result)
+        )
+    ).map((result) => ({
       assetKey: result.key,
       src: syncedImageUrls.get(result.key) || '',
       name: buildAssetName(result),
@@ -844,7 +898,7 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
     }));
 
     const existingProductImages =
-      syncMode === 'keep-existing'
+      syncMode === 'keep-existing' || isAppendOnlySync
         ? (product.images || [])
             .filter((image) => typeof image.id === 'number' || image.src)
             .map((image) => (typeof image.id === 'number' ? { id: image.id } : { src: image.src }))
@@ -915,7 +969,7 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
         : null;
 
       const finalValue =
-        field.name === occasionDusoFieldName
+        field.name === farwayOccasionDusoFieldName
           ? Array.from(
               new Set([
                 ...(Array.isArray(normalizedSubmittedValue) ? normalizedSubmittedValue : []),
@@ -952,9 +1006,44 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
           : {
               key: `_${field.name}`,
               value: field.key,
-            },
+        },
       ];
     });
+    const existingOccasionDusoValues = normalizeStringArray(
+      (product.meta_data || []).find((meta) => meta.key === farwayOccasionDusoFieldName)?.value
+    );
+    const mergedOccasionDusoValues = Array.from(
+      new Set([...existingOccasionDusoValues, ...occasioneDusoValues])
+    );
+    const existingOccasionDusoFieldKey = String(
+      (product.meta_data || []).find((meta) => meta.key === `_${farwayOccasionDusoFieldName}`)?.value ||
+        farwayOccasionDusoFieldKey
+    );
+    const occasionDusoMetaPayload =
+      occasioneDusoValues.length > 0
+        ? [
+            existingMetaByKey.has(farwayOccasionDusoFieldName)
+              ? {
+                  id: existingMetaByKey.get(farwayOccasionDusoFieldName),
+                  key: farwayOccasionDusoFieldName,
+                  value: mergedOccasionDusoValues,
+                }
+              : {
+                  key: farwayOccasionDusoFieldName,
+                  value: mergedOccasionDusoValues,
+                },
+            existingMetaByKey.has(`_${farwayOccasionDusoFieldName}`)
+              ? {
+                  id: existingMetaByKey.get(`_${farwayOccasionDusoFieldName}`),
+                  key: `_${farwayOccasionDusoFieldName}`,
+                  value: existingOccasionDusoFieldKey,
+                }
+              : {
+                  key: `_${farwayOccasionDusoFieldName}`,
+                  value: existingOccasionDusoFieldKey,
+                },
+          ]
+        : [];
 
     // Always pass new images as src: URLs so WooCommerce always downloads the latest
     // generated image in a single atomic PUT. A previous two-step approach (pre-upload
@@ -965,13 +1054,23 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
     // Using src: in the final PUT lets WooCommerce resolve everything in one step.
     // frontAttachmentByColor is built from updatedProduct.images after this single PUT,
     // so variant image assignment still works correctly.
-    const productImagesPayload = [
-      ...Array.from(
-        new Map(desiredProductImages.map((asset) => [asset.assetKey, asset])).values()
-      ).map((asset) => ({ src: asset.src, name: asset.name, alt: asset.alt })),
-      ...preservedExistingFrontImages,
-      ...existingProductImages,
-    ];
+    const newProductImages = Array.from(
+      new Map(desiredProductImages.map((asset) => [asset.assetKey, asset])).values()
+    ).map((asset) => ({ src: asset.src, name: asset.name, alt: asset.alt }));
+    const existingImageIdentities = buildExistingImageIdentitySet(product.images || []);
+    const appendOnlyNewProductImages = newProductImages.filter(
+      (asset) => !imageAssetAlreadyExists(existingImageIdentities, asset)
+    );
+    const productImagesPayload = isAppendOnlySync
+      ? [
+          ...existingProductImages,
+          ...appendOnlyNewProductImages,
+        ]
+      : [
+          ...newProductImages,
+          ...preservedExistingFrontImages,
+          ...existingProductImages,
+        ];
 
     await updateJob(jobId, {
       progress: 72,
@@ -984,11 +1083,15 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
       body: JSON.stringify({
         ...preservedProductFields,
         images: productImagesPayload,
-        ...(descriptionHtml ? { description: descriptionHtml } : {}),
-        ...(shortDescriptionHtml ? { short_description: shortDescriptionHtml } : {}),
-        cross_sell_ids: Array.from(
-          new Set([...(product.cross_sell_ids || []), ...companionProductIds])
-        ),
+        ...(!isAppendOnlySync && descriptionHtml ? { description: descriptionHtml } : {}),
+        ...(!isAppendOnlySync && shortDescriptionHtml ? { short_description: shortDescriptionHtml } : {}),
+        ...(!isAppendOnlySync
+          ? {
+              cross_sell_ids: Array.from(
+                new Set([...(product.cross_sell_ids || []), ...companionProductIds])
+              ),
+            }
+          : {}),
         ...(selectedLocationTagIds.length > 0
           ? {
               tags: Array.from(new Set([...existingTagIds, ...selectedLocationTagIds])).map(
@@ -998,7 +1101,9 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
               ),
             }
           : {}),
-        ...(acfMetaPayload.length > 0 ? { meta_data: acfMetaPayload } : {}),
+        ...(acfMetaPayload.length + occasionDusoMetaPayload.length > 0
+          ? { meta_data: [...acfMetaPayload, ...occasionDusoMetaPayload] }
+          : {}),
       }),
     });
 
@@ -1084,7 +1189,9 @@ async function runSyncJob(jobId: string, req: Request, body: SyncRequest) {
     const occasionMessage = ` Campo ACF occasioni d'uso aggiornato con ${occasioneDusoValues.length} valori.`;
 
     const message = `${
-      syncMode === 'keep-existing'
+      isAppendOnlySync
+        ? 'Sincronizzazione integrativa completata mantenendo invariata la galleria esistente.'
+        : syncMode === 'keep-existing'
         ? 'Sincronizzazione completata mantenendo anche le immagini gia presenti in galleria.'
         : 'Sincronizzazione completata sostituendo la galleria con il nuovo set.'
     } Galleria prodotto aggiornata con ${productImagesPayload.length} immagini e ${updatedVariationIds.length} varianti collegate.${crossSellMessage}${locationTagMessage}${occasionMessage}`;

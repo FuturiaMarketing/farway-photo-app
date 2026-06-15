@@ -8,6 +8,7 @@ import {
 import { ensureInitialDatabaseCompaction } from '@/lib/server/db';
 import { ensureLegacyLocalDataMigrated } from '@/lib/server/legacy-storage-migration';
 import { getResolvedWooCommerceSettings } from '@/lib/server/woocommerce-settings';
+import { mapFarwayOccasionValueToLabel } from '@/lib/farway-occasions';
 
 type WooCommerceAttribute = {
   name: string;
@@ -16,6 +17,8 @@ type WooCommerceAttribute = {
 
 type WooCommerceImage = {
   src: string;
+  name?: string;
+  alt?: string;
 };
 
 type WooCommerceCategory = {
@@ -47,6 +50,21 @@ type WooCommerceProduct = {
     value?: unknown;
   }>;
 };
+
+function buildStableProductImageUrl(imageUrl: string, storeUrl: string) {
+  const trimmed = String(imageUrl || '').trim();
+
+  if (!trimmed) {
+    return '';
+  }
+
+  try {
+    const resolvedUrl = new URL(trimmed, `${storeUrl.replace(/\/$/, '')}/`).toString();
+    return `/api/external-image?url=${encodeURIComponent(resolvedUrl)}`;
+  } catch {
+    return trimmed;
+  }
+}
 
 export async function GET(req: Request) {
   try {
@@ -145,8 +163,38 @@ export async function GET(req: Request) {
         colors = ['Unico'];
       }
 
+      const imageDetails = product.images
+        .map((image) => {
+          const proxySrc = buildStableProductImageUrl(image.src, cleanUrl);
+
+          if (!proxySrc) {
+            return null;
+          }
+
+          return {
+            src: proxySrc,
+            originalSrc: image.src,
+            name: image.name || '',
+            alt: image.alt || '',
+          };
+        })
+        .filter(
+          (
+            image
+          ): image is {
+            src: string;
+            originalSrc: string;
+            name: string;
+            alt: string;
+          } => Boolean(image)
+        );
       const uniqueImages = Array.from(
-        new Set(product.images.map((image) => image.src).filter(Boolean))
+        new Set(
+          imageDetails.map((image) => image.src)
+        )
+      );
+      const hasFarwaySyncedImages = product.images.some((image) =>
+        / di Farway Milano$/i.test(String(image.name || '').trim())
       );
 
       const resolvedCategories = product.categories.map((category) => {
@@ -220,11 +268,16 @@ export async function GET(req: Request) {
         (field) => field.name !== 'occasione_duso'
       );
       const acfValues = buildAcfValues(product.meta_data || [], allAcfFields);
+      const rawOccasioniDuso = extractOccasioniDuso(product.meta_data || []);
+      const selectedAdditionalScenarios = rawOccasioniDuso
+        .map((value) => mapFarwayOccasionValueToLabel(value))
+        .filter(Boolean);
 
       return {
         id: product.id,
         name: product.name,
         images: uniqueImages,
+        imageDetails,
         image: uniqueImages[0] || '',
         colors: colors,
         sizes: sizes,
@@ -235,6 +288,8 @@ export async function GET(req: Request) {
         categories: resolvedCategories,
         acfFields: allAcfFields,
         acfValues,
+        selectedAdditionalScenarios,
+        hasFarwaySyncedImages,
       };
     }));
 
@@ -243,6 +298,21 @@ export async function GET(req: Request) {
     const message = error instanceof Error ? error.message : 'Errore sconosciuto';
     return NextResponse.json({ error: message }, { status: 500 });
   }
+}
+
+function extractOccasioniDuso(metaData: NonNullable<WooCommerceProduct['meta_data']>) {
+  const match = metaData.find((meta) => meta.key === 'occasione_duso');
+  const value = match?.value;
+
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item || '').trim()).filter(Boolean);
+  }
+
+  if (typeof value === 'string' && value.trim().length > 0) {
+    return [value.trim()];
+  }
+
+  return [];
 }
 
 function buildAcfValues(

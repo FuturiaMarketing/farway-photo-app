@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server';
-import { hasDatabaseConnection, readJsonValue, writeJsonValue } from '@/lib/server/db';
+import {
+  ensureInitialDatabaseCompaction,
+  hasDatabaseConnection,
+  readJsonValue,
+  writeJsonValue,
+} from '@/lib/server/db';
 
 type StoredProductSession = {
   session: Record<string, unknown>;
@@ -40,6 +45,10 @@ function normalizeGeneratedResults(input: unknown) {
         return null;
       }
 
+      if (url.startsWith('data:') && url.length > 120_000) {
+        return null;
+      }
+
       return { key, kind, pose, color, url };
     })
     .filter(
@@ -76,6 +85,8 @@ function normalizeStoredSession(input: unknown): StoredProductSession {
 
 export async function GET(req: Request) {
   try {
+    await ensureInitialDatabaseCompaction();
+
     const { searchParams } = new URL(req.url);
     const projectId = String(searchParams.get('projectId') || '').trim();
     const productId = String(searchParams.get('productId') || '').trim();
@@ -98,6 +109,8 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
+    await ensureInitialDatabaseCompaction();
+
     const body = (await req.json()) as {
       projectId?: string;
       productId?: string | number;

@@ -66,6 +66,7 @@ const supportedFieldTypes = new Set<AcfRenderableFieldType>([
   'text',
   'wysiwyg',
 ]);
+const hiddenInternalFieldPrefixes = ['fw_erp_'];
 
 let acfExportCache: AcfExportGroup[] | null = null;
 let acfExportPathCache: string | null = null;
@@ -77,6 +78,10 @@ function normalizeToken(value: string) {
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '');
+}
+
+function isHiddenInternalFieldName(name: string) {
+  return hiddenInternalFieldPrefixes.some((prefix) => name.startsWith(prefix));
 }
 
 async function resolveAcfExportPath() {
@@ -218,7 +223,7 @@ function fieldToDefinition(group: AcfExportGroup, field: AcfExportField): AcfFie
   const name = String(field.name || '').trim();
   const key = String(field.key || '').trim();
 
-  if (!name || !key) {
+  if (!name || !key || isHiddenInternalFieldName(name)) {
     return null;
   }
 
@@ -324,6 +329,10 @@ export function inferAcfFieldsFromMetaData(
 
   for (const [key, value] of metaMap.entries()) {
     if (!key || key.startsWith('_') || key === 'occasione_duso' || knownNames.has(key)) {
+      continue;
+    }
+
+    if (isHiddenInternalFieldName(key)) {
       continue;
     }
 

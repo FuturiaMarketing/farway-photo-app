@@ -18,6 +18,7 @@ export async function GET(_: Request, context: RouteContext) {
   return new NextResponse(new Uint8Array(asset.bytes), {
     headers: {
       'Content-Type': asset.mimeType,
+      'Content-Disposition': `inline; filename="${String(asset.metadata?.filename || `${assetId}.bin`).replace(/"/g, '')}"`,
       'Cache-Control': 'public, max-age=31536000, immutable',
     },
   });
