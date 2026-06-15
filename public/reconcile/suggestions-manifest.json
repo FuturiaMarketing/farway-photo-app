@@ -1,0 +1,693 @@
+{
+  "generatedAt": "2026-06-15T22:49:36.040Z",
+  "count": 23,
+  "items": [
+    {
+      "file": "_AND3653-vertical-beige-centrato-zoom.jpg",
+      "garmentType": "Camicia bimbo a manica lunga, colletto a punta classico (turn-down), abbottonatura completa frontale, tessuto mussola/garza di cotone leggermente increspato, vestibilita boxy",
+      "category": "Camicie &amp; Bluse",
+      "colorDescription": "Giallo tenue uniforme (burro/limone pallido) senza pattern, su fondo beige chiaro; texture mussola visibile",
+      "viewGuess": "front",
+      "disposition": "match",
+      "candidates": [
+        {
+          "productId": 1385,
+          "productName": "Camicia George in Mussola",
+          "colorway": "Giallo e ocra",
+          "sku": "CAM-GEO-MUS-B",
+          "confidence": "alta",
+          "reason": "Thumb 1385 Giallo-e-ocra identico: colletto a punta, abbottonatura completa, manica lunga, mussola gialla pallida, vestibilita boxy — corrisponde a forma, costruzione, texture e colore della still-life"
+        },
+        {
+          "productId": 1911,
+          "productName": "Camicia alla Coreana in Mussola",
+          "colorway": "Giallo e ocra",
+          "sku": "CAM-COR-MUS-B",
+          "confidence": "bassa",
+          "reason": "Stessa mussola gialla ma colletto coreano/alla coreana (a fascia) e manica corta nel thumb — il colletto a punta e la manica lunga della foto escludono questo modello"
+        }
+      ],
+      "flags": [],
+      "thumbsRead": 3
+    },
+    {
+      "file": "_AND3655-vertical-beige-centrato-zoom.jpg",
+      "garmentType": "Camicia bimbo a manica lunga con colletto classico a punta, in tessuto mussola/garza di cotone leggermente increspato; inquadratura sul retro",
+      "category": "Camicie & Bluse",
+      "colorDescription": "Giallo pallido/burro uniforme, monocolore, tessuto a doppia garza con texture increspata visibile",
+      "viewGuess": "retro",
+      "disposition": "match",
+      "candidates": [
+        {
+          "productId": 1385,
+          "productName": "Camicia George in Mussola",
+          "sku": "CAM-GEO-MUS-B",
+          "colorway": "Giallo e ocra",
+          "confidence": "alta",
+          "reason": "Camicia manica lunga in mussola con colletto classico a punta e giallo pallido identico; texture garza increspata e taglia/forma combaciano col retro fotografato"
+        },
+        {
+          "productId": 1911,
+          "productName": "Camicia alla Coreana in Mussola",
+          "sku": "CAM-COR-MUS-B",
+          "colorway": "Giallo e ocra",
+          "confidence": "bassa",
+          "reason": "Stesso giallo e mussola ma colletto coreano/a banda e manica corta in questo colorway: la forma del collo non combacia col colletto a punta visibile nella foto"
+        },
+        {
+          "productId": 1423,
+          "productName": "Camicia Masha manica scampanata",
+          "sku": "CAM-MAS-MUS-D",
+          "colorway": "Giallo e ocra",
+          "confidence": "bassa",
+          "reason": "Stesso giallo mussola ma colletto Peter Pan e manica corta scampanata: costruzione diversa dalla manica lunga e dal colletto a punta della foto"
+        }
+      ],
+      "flags": [
+        "back-view",
+        "yellow-longsleeve-shirt",
+        "muslin-texture"
+      ],
+      "thumbsRead": 3,
+      "bucketReason": ""
+    },
+    {
+      "file": "_AND3656-vertical-beige-centrato-zoom.jpg",
+      "garmentType": "Camicia bimbo manica lunga con colletto a punta classico e abbottonatura intera, tessuto mussola/garza leggera, fit morbido boxy, con pannello/risvolto laterale a contrasto color crema",
+      "category": "Camicie &amp; Bluse",
+      "colorDescription": "Giallo limone tenue uniforme, con pannello di contrasto color crema/avorio sul fondo-lato (risvolto che mostra il rovescio piu chiaro del tessuto); bottoni chiari",
+      "viewGuess": "front",
+      "disposition": "match",
+      "candidates": [
+        {
+          "productId": 1385,
+          "productName": "Camicia George in Mussola",
+          "colorway": "Giallo e ocra",
+          "sku": "CAM-GEO-MUS-B",
+          "confidence": "alta",
+          "reason": "Colorway Giallo-e-ocra e primary thumb combaciano: colletto a punta, placket intera, manica lunga, mussola e pannello laterale a contrasto crema identico al risvolto in foto"
+        },
+        {
+          "productId": 1423,
+          "productName": "Camicia Masha manica scampanata",
+          "colorway": "Giallo e ocra",
+          "sku": "CAM-MAS-MUS-D",
+          "confidence": "bassa",
+          "reason": "Stesso giallo mussola ma colletto peter-pan tondo e manica corta scampanata, non il colletto a punta a manica lunga della foto"
+        }
+      ],
+      "flags": [
+        "pannello-contrasto-crema-coerente-con-rovescio-tessuto"
+      ],
+      "thumbsRead": 6,
+      "bucketReason": ""
+    },
+    {
+      "file": "_AND3660-vertical-beige-centrato-zoom.jpg",
+      "garmentType": "Camicia a manica lunga con colletto a punta classico e abbottonatura intera, taglio dritto/leggermente boxy, tessuto leggero tipo mussola",
+      "category": "Camicie &amp; Bluse",
+      "colorDescription": "Blu cobalto vivido uniforme (tinta unita), tessuto opaco leggermente strutturato; nessuna fantasia, bottoni a contrasto chiaro",
+      "viewGuess": "front",
+      "disposition": "match",
+      "candidates": [
+        {
+          "productId": 1385,
+          "productName": "Camicia George in Mussola",
+          "colorway": "Blu navy e notte",
+          "sku": "CAM-GEO-MUS-B",
+          "confidence": "alta",
+          "reason": "Thumb del colorway mostra esattamente camicia tinta unita blu cobalto, colletto a punta classico, abbottonatura intera, manica lunga, taglio dritto: corrisponde a forma e colore del flat-lay."
+        },
+        {
+          "productId": 4261,
+          "productName": "Camicia elegante con colletto",
+          "colorway": "Blu e azzurro intenso",
+          "sku": "CAM-010-COT",
+          "confidence": "bassa",
+          "reason": "Stesso family blu intenso, ma il thumb di questo prodotto e una blusa floreale con colletto Peter-Pan blu, non una camicia tinta unita: forma non corrisponde."
+        }
+      ],
+      "flags": [
+        "colorway-name-non-literal: il blu cobalto del flat-lay e reso da 'Blu navy e notte' nel thumb, non da un navy scuro"
+      ],
+      "thumbsRead": 4,
+      "bucketReason": ""
+    },
+    {
+      "file": "_AND3661-vertical-beige-centrato-zoom.jpg",
+      "garmentType": "Camicia bambino a maniche lunghe, abbottonatura frontale, colletto a punta (spread), tessuto in mussola/garza crinkle, orlo curvo hi-lo con risvolto interno a contrasto grigio chiaro visibile al fondo",
+      "category": "Camicie &amp; Bluse",
+      "colorDescription": "Blu cornflower/royal vivido, monocolore; tessuto leggermente testurizzato (mussola); profilo/risvolto interno grigio chiaro a contrasto visibile sull'orlo laterale",
+      "viewGuess": "front",
+      "disposition": "match",
+      "candidates": [
+        {
+          "productId": 1385,
+          "productName": "Camicia George in Mussola",
+          "colorway": "Blu navy e notte",
+          "confidence": "alta",
+          "sku": "CAM-GEO-MUS-B",
+          "reason": "Costruzione identica: manica lunga, colletto a punta, placket bottoni, mussola crinkle, orlo curvo hi-lo con risvolto interno a contrasto come nello still-life; il colorway Blu navy e notte fotografa esattamente come questo blu cornflower vivido (thumb 1385__Blu-navy-e-notte.jpg)."
+        },
+        {
+          "productId": 4081,
+          "productName": "Camicia Coreana manica lunga",
+          "colorway": "Azzurro polvere e denim",
+          "confidence": "bassa",
+          "sku": "CAM-COR-COT-C",
+          "reason": "Camicia blu manica lunga con placket, ma colletto coreano/a fascia (non a punta come nella foto) e azzurro piu spento: scartata come secondaria."
+        }
+      ],
+      "flags": [
+        "risvolto-interno-contrasto-grigio-al-fondo",
+        "colorway-non-letterale-Blu-navy-e-notte-fotografa-cornflower"
+      ],
+      "thumbsRead": 5,
+      "bucketReason": ""
+    },
+    {
+      "file": "camicia_gialla_r-vertical-beige.jpg",
+      "garmentType": "Camicia bambino manica corta con collo alla coreana (band/grandad collar), taglio boxy in tessuto leggero tipo mussola/lino, fotografata dal retro",
+      "category": "Camicie &amp; Bluse",
+      "colorDescription": "Giallo tenue/burro uniforme, monocolore; tessuto leggero leggermente trasparente con trama; lembo del davanti (placket/orlo) intravisto chiaro al fondo",
+      "viewGuess": "retro",
+      "disposition": "match",
+      "candidates": [
+        {
+          "productId": 1911,
+          "productName": "Camicia alla Coreana in Mussola",
+          "colorway": "Giallo e ocra",
+          "confidence": "alta",
+          "reason": "Collo alla coreana (band collar) coerente col colletto in piedi visibile dal retro; mussola gialla leggera e taglio boxy manica corta combaciano per colore e texture col thumb Giallo e ocra",
+          "sku": "CAM-COR-MUS-B"
+        },
+        {
+          "productId": 4109,
+          "productName": "Camicia in lino manica corta",
+          "colorway": "Verde khaki e militare",
+          "confidence": "bassa",
+          "reason": "Silhouette boxy manica corta in tessuto lino simile, ma colletto a punta (non band) e nessuna colorway gialla: forma vicina ma collo e colore non combaciano",
+          "sku": "CAM-013-LIN"
+        }
+      ],
+      "flags": [
+        "retro-view: colletto giudicato dalla forma posteriore in piedi, non frontale",
+        "colorway 1911 Giallo e ocra fotografa come giallo burro, coerente con la foto"
+      ],
+      "thumbsRead": 4
+    },
+    {
+      "file": "camicia_giraffe-dav_-vertical-beige.jpg",
+      "garmentType": "Camicia bambino a manica corta, colletto a punta (spread), abbottonatura frontale completa, taschino sul petto sinistro; stampa fitta di piccole giraffe gialle/olive con piccoli fumetti bianchi su fondo pesca/cipria",
+      "category": "Camicie & Bluse",
+      "colorDescription": "Fondo pesca/cipria chiaro; pattern repeat di giraffine giallo-ocra con dettagli verde oliva e cremisi; piccole nuvolette/fumetti bianchi sparsi; bottoni tono marrone",
+      "viewGuess": "front",
+      "disposition": "match",
+      "candidates": [
+        {
+          "productId": 953,
+          "productName": "Camicia manica corta Giraffe",
+          "sku": "CAM-050-COT",
+          "colorway": "Fantasie: animali",
+          "confidence": "alta",
+          "reason": "Thumb prodotto identico: camicia manica corta, colletto a punta, abbottonatura frontale, fondo pesca con stessa stampa giraffe gialle/olive e fumetti bianchi"
+        },
+        {
+          "productId": 4604,
+          "productName": "Camicia fantasia animali",
+          "sku": "CAM-006-COT",
+          "colorway": "Fantasie: animali",
+          "confidence": "bassa",
+          "reason": "Stessa famiglia 'fantasia animali' ma il thumb è verde salvia e a manica lunga, stampa bosco multicolore: colore e maniche non corrispondono"
+        }
+      ],
+      "flags": [
+        "filename-hint-ignored",
+        "candidato-4604-stesso-tema-ma-colore-e-maniche-diversi"
+      ],
+      "thumbsRead": 3
+    },
+    {
+      "file": "camicia_giraffe-dietro-vertical-beige.jpg",
+      "garmentType": "Short-sleeve shirt with camp/convertible collar, photographed from the back (button placket visible on the flipped-over front)",
+      "category": "Camicie &amp; Bluse",
+      "colorDescription": "Peach/apricot ground with an all-over print of small giraffes (yellow/olive bodies, red feet) and scattered white \"Khoppi\" speech-bubble motifs",
+      "viewGuess": "retro",
+      "disposition": "match",
+      "candidates": [
+        {
+          "productId": 953,
+          "productName": "Camicia manica corta Giraffe",
+          "colorway": "Fantasie: animali",
+          "sku": "CAM-050-COT",
+          "confidence": "alta",
+          "reason": "Primary thumb shows the identical peach short-sleeve shirt with the same all-over giraffe + Khoppi speech-bubble print; only colorway on the product."
+        },
+        {
+          "productId": 4604,
+          "productName": "Camicia fantasia animali",
+          "colorway": "Fantasie: animali",
+          "sku": "CAM-006-COT",
+          "confidence": "bassa",
+          "reason": "Same product family/print theme but thumb is a long-sleeve green woodland-animal shirt: wrong color, wrong sleeve length, wrong animals."
+        }
+      ],
+      "flags": [],
+      "thumbsRead": 2
+    },
+    {
+      "file": "Camicia-alla-Coreana-in-Mussola-Rosa-pastello-e-antico-still-life-front-2-di-Farway-Milano.jpg",
+      "garmentType": "Camicia bimbo a maniche corte, collo alla coreana (a fascia/mandarino), placket abbottonato per intero, fodera/risvolto interno color crema al collo; tessuto mussola di cotone goffrato (crinkled), tinta pesca-terracotta",
+      "category": "Camicie & Bluse",
+      "colorDescription": "Pesca/terracotta tenue uniforme (salmone caldo), tessuto mussola goffrato; interno collo crema; bottoni chiari/madreperla; etichetta verde Farway al collo",
+      "viewGuess": "front",
+      "disposition": "match",
+      "candidates": [
+        {
+          "productId": 1911,
+          "productName": "Camicia alla Coreana in Mussola",
+          "colorway": "Rosa pastello e antico",
+          "sku": "CAM-COR-MUS-B",
+          "confidence": "alta",
+          "reason": "Il thumb colorway 'Rosa pastello e antico' fotografa esattamente come la mussola goffrata pesca-terracotta della still-life: stesso collo alla coreana a fascia, maniche corte, placket abbottonato intero, identica tinta e texture."
+        },
+        {
+          "productId": 1305,
+          "productName": "Camicia alla Coreana in Lino",
+          "colorway": "Rosa cipria e nude",
+          "sku": "CAM-COR-COT-D",
+          "confidence": "bassa",
+          "reason": "Stessa identica costruzione (collo coreana, maniche corte, placket), ma il primaryThumb mostra tessuto lino/popeline liscio e tinte navy/celeste; la texture goffrata e il colore pesca della foto puntano alla versione in mussola, non lino."
+        }
+      ],
+      "flags": [],
+      "thumbsRead": 3,
+      "bucketReason": ""
+    },
+    {
+      "file": "Camicia-alla-Coreana-in-Mussola-Rosa-pastello-e-antico-still-life-front-di-Farway-Milano.jpg",
+      "garmentType": "Camicia bimbo a manica corta con collo alla coreana (mandarin), tessuto mussola/garza, abbottonatura frontale a 4 bottoni in legno/madreperla chiara",
+      "category": "Camicie &amp; Bluse",
+      "colorDescription": "Pesca / terracotta tenue uniforme (peach-albicocca), tessuto a garza testurizzato, monocolore; interno colletto in tono chiaro/avorio con etichetta brand",
+      "viewGuess": "front",
+      "disposition": "match",
+      "candidates": [
+        {
+          "productId": 1911,
+          "productName": "Camicia alla Coreana in Mussola",
+          "colorway": "Rosa pastello e antico",
+          "confidence": "alta",
+          "sku": "CAM-COR-MUS-B",
+          "reason": "Il thumb colorway 1911__Rosa-pastello-e-antico mostra identica camicia: collo alla coreana, manica corta, mussola pesca/terracotta, stessa abbottonatura e tonalita del still-life."
+        }
+      ],
+      "flags": [],
+      "thumbsRead": 2
+    },
+    {
+      "file": "camicia-giraffe_panta-marroni-vertical-beige.jpg",
+      "garmentType": "Camicia a manica corta con colletto (stampa giraffe) + un pantalone lungo marrone tinta unita, presentati insieme nello stesso flat-lay",
+      "category": "Camicie &amp; Bluse",
+      "colorDescription": "Camicia: base pesca/beige chiaro con motivo ripetuto di piccole giraffe giallo-verdi; bottoni tono su tono. Pantalone: marrone scuro/mocha tinta unita, vita arricciata con coulisse, nessuna stampa",
+      "viewGuess": "front",
+      "disposition": "bucket",
+      "bucketReason": "comparativo — il flat-lay contiene due capi distinti (camicia stampa giraffe + pantalone marrone tinta unita). La camicia ha un match esatto univoco; il pantalone è un prodotto diverso. Listo entrambe le ipotesi ma segnalo come comparativo.",
+      "candidates": [
+        {
+          "productId": 953,
+          "productName": "Camicia manica corta Giraffe",
+          "colorway": "Fantasie: animali",
+          "sku": "CAM-050-COT",
+          "confidence": "alta",
+          "reason": "Camicia manica corta con colletto a punta, base pesca/beige e motivo ripetuto di piccole giraffe giallo-verdi: combaciano taglio, maniche corte, colore di fondo e stampa con il primaryThumb e il colorway thumb di 953."
+        },
+        {
+          "productId": 3922,
+          "productName": "Pantalone lungo mussola",
+          "colorway": "Marrone e mocha",
+          "sku": "PAN-018-MUS",
+          "confidence": "bassa",
+          "reason": "Il secondo capo del flat-lay e' un pantalone lungo marrone scuro tinta unita con vita arricciata; l'unico pantalone marrone tinta unita a catalogo e' 3922 colorway 'Marrone e mocha' (non aperto il thumb, ipotesi da nome/categoria)."
+        }
+      ],
+      "flags": [
+        "comparative-shot",
+        "due-capi-distinti",
+        "filename-hint-giraffe-corretto",
+        "colorway-camicia-confermato-da-thumb",
+        "pantalone-marrone-non-verificato-visivamente"
+      ],
+      "thumbsRead": 4
+    },
+    {
+      "file": "camicia-panta-giraffe-vertical-beige.jpg",
+      "garmentType": "Coordinated two-piece set: a short-sleeve collared button shirt and matching full-length elastic-waist pants, both in the same fabric/print",
+      "category": "Camicie & Bluse (shirt) + Pantaloni (pants)",
+      "colorDescription": "Peach / blush-beige ground with a small scattered print of giraffes in olive-green, mustard-yellow, and rust, plus tiny white text-label motifs",
+      "viewGuess": "front",
+      "disposition": "bucket",
+      "bucketReason": "comparativo — la foto contiene due capi distinti (camicia + pantalone) nello stesso scatto; mappano a due prodotti separati del catalogo, non a un singolo SKU",
+      "candidates": [
+        {
+          "productId": 953,
+          "productName": "Camicia manica corta Giraffe",
+          "sku": "CAM-050-COT",
+          "colorway": "Fantasie: animali",
+          "confidence": "alta",
+          "reason": "Camicia con stessa stampa giraffe su fondo pesca, manica corta e colletto pieno; il thumb 953 mostra lo stesso identico capo (anche abbinato a shorts giraffe)"
+        },
+        {
+          "productId": 1870,
+          "productName": "Pantalone Cropped in Popeline Giraffe",
+          "sku": "PAN-033-COT",
+          "colorway": "Fantasie: animali",
+          "confidence": "alta",
+          "reason": "Pantalone lungo cropped con vita elastica e stessa stampa giraffe su fondo pesca; il thumb 1870 mostra esattamente questo pantalone, coerente con i pantaloni a figura intera in foto"
+        },
+        {
+          "productId": 3998,
+          "productName": "Pantaloncino Giraffe Nuovo",
+          "sku": "PAS-015-COT",
+          "colorway": "Fantasie: animali",
+          "confidence": "bassa",
+          "reason": "Stessa stampa giraffe ma sono shorts ampi, non pantaloni lunghi; escluso perche in foto il capo inferiore e a figura intera"
+        }
+      ],
+      "flags": [
+        "comparative-shot-two-garments",
+        "shirt-maps-to-953",
+        "pants-maps-to-1870",
+        "shorts-3998-excluded-by-length"
+      ],
+      "thumbsRead": 4
+    },
+    {
+      "file": "Camicia-Smanicata-fantasia-Zebra-still-life-front-di-Farway-Milano.jpg",
+      "garmentType": "Sleeveless A-line top (camicia smanicata) with contrasting cream front placket and two buttons at the neckline",
+      "category": "Camicie & Bluse",
+      "colorDescription": "Periwinkle / dusty-blue ground with an allover small zebra print in white/cream and dark accents; cream/ivory placket with two beige buttons",
+      "viewGuess": "front",
+      "disposition": "match",
+      "candidates": [
+        {
+          "productId": 1910,
+          "productName": "Camicia Smanicata fantasia Zebra",
+          "sku": "CAM-032-COT",
+          "colorway": null,
+          "confidence": "alta",
+          "reason": "Lifestyle thumb shows identical garment: sleeveless A-line top, periwinkle ground, allover small zebra print, cream front placket with two buttons. Construction, pattern and color match exactly; mono product."
+        }
+      ],
+      "flags": [],
+      "thumbsRead": 1,
+      "bucketReason": ""
+    },
+    {
+      "file": "Camicia-Smanicata-fantasia-Zebra-still-life-retro-di-Farway-Milano.jpg",
+      "garmentType": "Sleeveless buttoned top (camicia smanicata) for kids — back view, vertical row of wooden buttons down the centre back, contrast white piping at armholes/neckline",
+      "category": "Camicie & Bluse",
+      "colorDescription": "Periwinkle/denim-blue ground with an all-over small print of stylised white-and-black zebra figures; tan/wooden buttons",
+      "viewGuess": "retro",
+      "disposition": "match",
+      "candidates": [
+        {
+          "productId": 1910,
+          "productName": "Camicia Smanicata fantasia Zebra",
+          "colorway": null,
+          "confidence": "alta",
+          "sku": "CAM-032-COT",
+          "reason": "Catalog primaryThumb and unico thumb show the identical garment: sleeveless periwinkle-blue top with all-over small zebra-figure print and wooden-button front placket; still-life is the back view, same fabric, same zebra figures, same wooden buttons. isMono single colorway."
+        }
+      ],
+      "flags": [],
+      "thumbsRead": 2,
+      "bucketReason": ""
+    },
+    {
+      "file": "Camicia-Smanicata-fantasia-Zebra-still-life-retro-risvolto-di-Farway-Milano.jpg",
+      "garmentType": "Camicia/blusa smanicata da bambino in tessuto leggero, con abbottonatura frontale a bottoni di legno e fodera interna (double-face); lembo sollevato che mostra il rovescio",
+      "category": "Camicie & Bluse",
+      "colorDescription": "Blu pervinca/denim chiaro con stampa all-over di zebre stilizzate bianche; interno/fodera in tono più chiaro celeste con bordo panna",
+      "viewGuess": "retro-risvolto",
+      "disposition": "match",
+      "candidates": [
+        {
+          "productId": 1910,
+          "productName": "Camicia Smanicata fantasia Zebra",
+          "colorway": null,
+          "sku": "CAM-032-COT",
+          "confidence": "alta",
+          "reason": "Stessa blusa smanicata blu pervinca con stampa zebre bianche all-over e abbottonatura frontale; la primaryThumb mostra identico capo indossato. isMono = nessuna colorway."
+        }
+      ],
+      "flags": [],
+      "thumbsRead": 1,
+      "bucketReason": ""
+    },
+    {
+      "file": "DSC02048-vertical-beige-colore-originale.jpg",
+      "garmentType": "Children's suspender skirt (gonna salopette) — gathered skirt with crossed shoulder straps fastened by two wooden buttons at the waistband",
+      "category": "Gonne",
+      "colorDescription": "Solid taupe / warm grey (grey-green) cotton, matte popeline weave, two small natural wooden buttons; no pattern",
+      "viewGuess": "retro",
+      "disposition": "match",
+      "candidates": [
+        {
+          "productId": 2039,
+          "productName": "Gonna Salopette in Popeline",
+          "colorway": "Grigio melange e chiaro",
+          "sku": "GON-022-COT",
+          "confidence": "alta",
+          "reason": "Exact construction match: gathered popeline suspender skirt with crossed straps and two wooden waist buttons; the 'Grigio melange e chiaro' colorway photographs as the identical taupe/grey seen in the flat-lay."
+        }
+      ],
+      "flags": [],
+      "thumbsRead": 3,
+      "bucketReason": ""
+    },
+    {
+      "file": "DSC02049-vertical-beige-colore-originale.jpg",
+      "garmentType": "Children's suspender skirt (gonna salopette) — crossed shoulder straps with X-back, gathered/elasticated waistband, full circle-cut flared skirt",
+      "category": "Gonne",
+      "colorDescription": "Solid muted taupe / warm grey-green, no pattern; matte woven fabric (poplin-like, not corduroy/velvet)",
+      "viewGuess": "retro",
+      "disposition": "match",
+      "candidates": [
+        {
+          "productId": 2039,
+          "productName": "Gonna Salopette in Popeline",
+          "colorway": "Grigio melange e chiaro",
+          "confidence": "alta",
+          "reason": "Identical X-cross suspender construction, gathered/elasticated waist and full circle flared skirt; poplin (matte woven) matches photo texture, and the 'Grigio melange e chiaro' colorway thumb photographs as the same warm taupe-grey seen in the still-life",
+          "sku": "GON-022-COT"
+        },
+        {
+          "productId": 1642,
+          "productName": "Gonna Salopette in Velluto",
+          "colorway": "Verde khaki e militare",
+          "confidence": "bassa",
+          "reason": "Same salopette skirt shape but velvet/corduroy fabric and shown in olive green — wrong texture and color vs the matte taupe photo; included only as the other salopette skirt",
+          "sku": "GON-042-VEL"
+        }
+      ],
+      "flags": [],
+      "thumbsRead": 3,
+      "bucketReason": ""
+    },
+    {
+      "file": "DSC02057-vertical-beige-colore-originale.jpg",
+      "garmentType": "Gonna salopette (suspender/pinafore skirt) per bambina: bretelle incrociate sul retro, vita arricciata con due bottoni in legno, gonna a ruota arricciata svasata",
+      "category": "Gonne",
+      "colorDescription": "Grigio antracite scuro uniforme (charcoal), tessuto opaco a trama piatta (popeline, non velluto); due bottoni in legno chiaro alla vita",
+      "viewGuess": "front",
+      "disposition": "match",
+      "candidates": [
+        {
+          "productId": 2039,
+          "productName": "Gonna Salopette in Popeline",
+          "colorway": "Grigio melange e chiaro",
+          "sku": "GON-022-COT",
+          "confidence": "alta",
+          "reason": "Costruzione identica: bretelle incrociate sul retro, vita arricciata con due bottoni in legno, gonna a ruota svasata; colore grigio antracite e tessuto piatto popeline combaciano con la thumb modella del colorway grigio (unico colorway del prodotto)"
+        },
+        {
+          "productId": 1642,
+          "productName": "Gonna Salopette in Velluto",
+          "colorway": "Bordeaux e mattone",
+          "sku": "GON-042-VEL",
+          "confidence": "bassa",
+          "reason": "Stessa tipologia salopette ma in velluto (la foto mostra trama piatta opaca, non velluto) e nessun colorway grigio nel prodotto; scartato per materiale e colore"
+        }
+      ],
+      "flags": [
+        "isMono-false-single-colorway",
+        "filename-hint-ignored (\"beige/giraffe\" non pertinente: capo grigio)"
+      ],
+      "thumbsRead": 3,
+      "bucketReason": ""
+    },
+    {
+      "file": "DSC02058-vertical-beige-colore-originale.jpg",
+      "garmentType": "Children's suspender skirt (gonna salopette) — crossed shoulder straps attached to a gathered, elasticated-waist full circle skirt",
+      "category": "Gonne",
+      "colorDescription": "Solid charcoal / dark slate grey, matte woven (poplin) fabric, no pattern",
+      "viewGuess": "front",
+      "disposition": "match",
+      "candidates": [
+        {
+          "productId": 2039,
+          "productName": "Gonna Salopette in Popeline",
+          "colorway": "Grigio melange e chiaro",
+          "sku": "GON-022-COT",
+          "confidence": "alta",
+          "reason": "Identical construction — crossed suspender straps + gathered elasticated-waist full circle skirt — and matte grey poplin; the 2039 model shot shows exactly this charcoal-grey suspender skirt. Only colorway available."
+        },
+        {
+          "productId": 1642,
+          "productName": "Gonna Salopette in Velluto",
+          "colorway": "Bordeaux e mattone",
+          "sku": "GON-042-VEL",
+          "confidence": "bassa",
+          "reason": "Same salopette-skirt silhouette but velvet (sheen) and offered only in azzurro/bordeaux/verde khaki — none charcoal-grey; photo fabric is matte poplin, so material and color rule it out."
+        }
+      ],
+      "flags": [
+        "filename hint 'beige' refers to background, not garment",
+        "photo is flat-lay still-life vs catalog on-model shot — color confirmed against 2039 model image"
+      ],
+      "thumbsRead": 2,
+      "bucketReason": ""
+    },
+    {
+      "file": "gonna_giraffe_camicia_piegata-vertical-beige.jpg",
+      "garmentType": "Due capi insieme: una camicia/camicietta piegata con colletto (in alto) e una gonna a ruota plissettata bicolore (in basso), entrambe nella stessa fantasia giraffe su fondo pesca; la gonna mostra spicchi rossi tra le pieghe",
+      "category": "Gonne",
+      "colorDescription": "Fantasia giraffe (piccole giraffe gialle/verdi con dettagli rossi) su fondo pesca/crema; spicchi/fodera interna rosso vivo visibili tra le pieghe della gonna",
+      "viewGuess": "front",
+      "disposition": "bucket",
+      "bucketReason": "comparativo — lo scatto ritrae due capi diversi insieme (camicia piegata + gonna), non un singolo prodotto. La gonna è però identificabile con alta confidenza.",
+      "candidates": [
+        {
+          "productId": 1195,
+          "productName": "Gonna Masha bicolore Giraffe",
+          "sku": "GON-MAS-COT-F",
+          "colorway": "Fantasie: animali",
+          "confidence": "alta",
+          "reason": "Il primaryThumb mostra esattamente questa gonna a ruota plissettata con fantasia giraffe su fondo pesca e spicchi rossi bicolore tra le pieghe, identica alla gonna nello still-life."
+        },
+        {
+          "productId": 1240,
+          "productName": "Gonna Masha bicolore Principe Ranocchio",
+          "sku": "GON-MAS-COT-E",
+          "colorway": "Fantasie: personaggi",
+          "confidence": "bassa",
+          "reason": "Stessa costruzione (gonna Masha bicolore a spicchi) ma fantasia ranocchio su fondo verde-salvia con spicchi gialli: print e colori non corrispondono al giraffe su pesca."
+        }
+      ],
+      "flags": [
+        "comparative-shot",
+        "two-garments",
+        "skirt-plus-shirt-coordinated-set",
+        "shirt-not-matched"
+      ],
+      "thumbsRead": 2
+    },
+    {
+      "file": "Pantaloncino-a-palloncino-Grigio-melange-e-chiaro-still-life-front-di-Farway-Milano.jpg",
+      "garmentType": "Pantaloncini a palloncino (bloomer/balloon shorts) per bambino, vita elastica arricciata e orli arricciati con balza, costruzione a sbuffo",
+      "category": "Pantaloncini",
+      "colorDescription": "Tinta unita taupe caldo / grigio-verde (olivastro), tessuto compatto opaco, nessuna fantasia",
+      "viewGuess": "front",
+      "disposition": "match",
+      "candidates": [
+        {
+          "productId": 1936,
+          "productName": "Pantaloncino a palloncino",
+          "colorway": "Grigio melange e chiaro",
+          "sku": "PAN-031-COT",
+          "confidence": "alta",
+          "reason": "Costruzione identica: vita elastica arricciata + orli arricciati con balza, sagoma a palloncino; il primaryThumb (colorway Grigio melange indossato) mostra lo stesso taupe caldo/grigio-verde della still-life; le altre due colorway (panna, fucsia) non corrispondono al colore."
+        },
+        {
+          "productId": 3801,
+          "productName": "Pantaloncino a palloncino mussolina",
+          "colorway": "Off-white e cloud",
+          "sku": "PAS-019-COT",
+          "confidence": "bassa",
+          "reason": "Stesso tipo a palloncino ma in mussolina leggera e colorway chiare/azzurre/rosa; tessuto e tono non combaciano col taupe compatto della foto."
+        }
+      ],
+      "flags": [
+        "dedicated-colorway-thumb-reads-cooler-than-stilllife-but-primaryThumb-confirms-warm-taupe"
+      ],
+      "thumbsRead": 4,
+      "bucketReason": ""
+    },
+    {
+      "file": "Pantaloncino-a-palloncino-Grigio-melange-e-chiaro-still-life-retro-di-Farway-Milano.jpg",
+      "garmentType": "Pantaloncino a palloncino (balloon/bloomer shorts) per bambino: vita elasticizzata arricciata, gambe ampie a sbuffo con polsini elastici arricciati e piccola ruche/volant al bordo gamba",
+      "category": "Pantaloncini",
+      "colorDescription": "Tessuto twill liscio, tinta unita, colore taupe/grigio-tortora caldo (greige). Vista posteriore con cucitura centrale e doppia coulisse elastica in vita",
+      "viewGuess": "retro",
+      "disposition": "match",
+      "candidates": [
+        {
+          "productId": 1936,
+          "productName": "Pantaloncino a palloncino",
+          "colorway": "Grigio melange e chiaro",
+          "confidence": "alta",
+          "sku": "PAN-031-COT",
+          "reason": "Costruzione identica: vita elastica arricciata + polsini gamba elasticizzati con volant. Thumb colorway 'Grigio melange e chiaro' fotografa lo stesso twill taupe/greige liscio del still-life"
+        },
+        {
+          "productId": 3801,
+          "productName": "Pantaloncino a palloncino mussolina",
+          "colorway": "Off-white e cloud",
+          "confidence": "bassa",
+          "sku": "PAS-019-COT",
+          "reason": "Stessa silhouette a palloncino ma tessuto mussolina crinkle e senza volant al polsino; il still-life mostra twill liscio con ruche, quindi escluso come primario"
+        }
+      ],
+      "flags": [
+        "nome-prodotto-condiviso: due prodotti 'a palloncino' (1936 twill vs 3801 mussolina), distinti per tessuto e dettaglio volant",
+        "filename-colorway 'Grigio melange e chiaro' coincide con colorway reale di 1936"
+      ],
+      "thumbsRead": 3,
+      "bucketReason": ""
+    },
+    {
+      "file": "pantaloni-camicia_giraffe2-vertical-beige.jpg",
+      "garmentType": "Coordinated two-piece set: a short-sleeve collared button-up shirt + matching pull-on trousers (elasticated waist), both in the same fabric",
+      "category": "Camicie &amp; Bluse + Pantaloni (coordinated set)",
+      "colorDescription": "Peachy/pale-pink ground with a small all-over print of tiny birds/storks in olive-green, mustard-yellow and cream; tonal buttons",
+      "viewGuess": "front",
+      "disposition": "bucket",
+      "bucketReason": "comparativo — la foto è un set coordinato con due capi distinti (camicia + pantalone) della stessa fantasia, non un singolo prodotto; entrambi i componenti sono però identificabili con alta confidenza",
+      "candidates": [
+        {
+          "productId": 953,
+          "productName": "Camicia manica corta Giraffe",
+          "sku": "CAM-050-COT",
+          "colorway": "Fantasie: animali",
+          "confidence": "alta",
+          "reason": "Il thumb del prodotto mostra la stessa camicia manica corta con colletto, fondo pesca e identica fantasia a uccellini/giraffe del capo a sinistra nella still-life"
+        },
+        {
+          "productId": 1870,
+          "productName": "Pantalone Cropped in Popeline Giraffe",
+          "sku": "PAN-033-COT",
+          "colorway": "Fantasie: animali",
+          "confidence": "alta",
+          "reason": "Il thumb del prodotto mostra pantalone cropped con vita elastica su fondo pesca e identica fantasia: corrisponde al pantalone a destra nella still-life"
+        }
+      ],
+      "flags": [
+        "comparative-shot",
+        "coordinated-set",
+        "two-garments",
+        "filename-hint-giraffe-confirmed-as-animali-print"
+      ],
+      "thumbsRead": 2
+    }
+  ]
+}

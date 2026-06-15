@@ -1,0 +1,2726 @@
+[
+  {
+    "id": 4761,
+    "name": "Pantaloncino in velluto",
+    "sku": "PAN-001-VEL",
+    "categories": [
+      "Femmina",
+      "Pantaloncini",
+      "Pantaloni"
+    ],
+    "isMono": false,
+    "primaryThumb": "4761__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Blu e azzurro intenso",
+        "thumb": "4761__Blu-e-azzurro-intenso.jpg"
+      },
+      {
+        "colorway": "Giallo e ocra",
+        "thumb": "4761__Giallo-e-ocra.jpg"
+      },
+      {
+        "colorway": "Rosa cipria e nude",
+        "thumb": "4761__Rosa-cipria-e-nude.jpg"
+      },
+      {
+        "colorway": "Rosso e ciliegia",
+        "thumb": "4761__Rosso-e-ciliegia.jpg"
+      }
+    ]
+  },
+  {
+    "id": 4715,
+    "name": "Fiocco Giraffe",
+    "sku": "FIO-BAS-COT-A",
+    "categories": [
+      "Femmina",
+      "Fiocchi e fermagli"
+    ],
+    "isMono": false,
+    "primaryThumb": "4715__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Giallo e ocra",
+        "thumb": null
+      },
+      {
+        "colorway": "Rosso e ciliegia",
+        "thumb": null
+      }
+    ]
+  },
+  {
+    "id": 4659,
+    "name": "Cardigan fatto a mano",
+    "sku": "FEL-002-COT",
+    "categories": [
+      "Felpe &amp; Maglieria",
+      "Femmina",
+      "Maschio",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "4659__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Panna e avorio",
+        "thumb": "4659__Panna-e-avorio.jpg"
+      }
+    ]
+  },
+  {
+    "id": 4645,
+    "name": "Pantalone denim",
+    "sku": "PAN-003-DEN",
+    "categories": [
+      "Femmina",
+      "Maschio",
+      "Pantaloni",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "4645__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Azzurro polvere e denim",
+        "thumb": "4645__Azzurro-polvere-e-denim.jpg"
+      }
+    ]
+  },
+  {
+    "id": 4623,
+    "name": "Pantalone elegante oversize",
+    "sku": "PAN-004-COT",
+    "categories": [
+      "Femmina",
+      "Maschio",
+      "Pantaloni",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "4623__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Marrone e mocha",
+        "thumb": null
+      },
+      {
+        "colorway": "Verde bosco e scuri",
+        "thumb": null
+      }
+    ]
+  },
+  {
+    "id": 4615,
+    "name": "Camicia a scacchi",
+    "sku": "CAM-005-COT",
+    "categories": [
+      "Camicie &amp; Bluse",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "4615__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Giallo e ocra",
+        "thumb": "4615__Giallo-e-ocra.jpg"
+      }
+    ]
+  },
+  {
+    "id": 4604,
+    "name": "Camicia fantasia animali",
+    "sku": "CAM-006-COT",
+    "categories": [
+      "Camicie &amp; Bluse",
+      "Femmina",
+      "Maschio",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "4604__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Fantasie: animali",
+        "thumb": "4604__Fantasie-animali.jpg"
+      }
+    ]
+  },
+  {
+    "id": 4591,
+    "name": "Abito Fantasia animali",
+    "sku": "ABI-007-COT",
+    "categories": [
+      "Abiti",
+      "Femmina"
+    ],
+    "isMono": false,
+    "primaryThumb": "4591__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Fantasie: animali",
+        "thumb": "4591__Fantasie-animali.jpg"
+      }
+    ]
+  },
+  {
+    "id": 4563,
+    "name": "Sopravveste in velluto",
+    "sku": "ABI-008-VEL",
+    "categories": [
+      "Abiti",
+      "Femmina"
+    ],
+    "isMono": false,
+    "primaryThumb": "4563__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Giallo e ocra",
+        "thumb": "4563__Giallo-e-ocra.jpg"
+      },
+      {
+        "colorway": "Verde bosco e scuri",
+        "thumb": "4563__Verde-bosco-e-scuri.jpg"
+      }
+    ]
+  },
+  {
+    "id": 4529,
+    "name": "Abito in velluto manica lunga",
+    "sku": "ABI-009-VEL",
+    "categories": [
+      "Abiti",
+      "Femmina"
+    ],
+    "isMono": false,
+    "primaryThumb": "4529__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Giallo e ocra",
+        "thumb": "4529__Giallo-e-ocra.jpg"
+      },
+      {
+        "colorway": "Rosso e ciliegia",
+        "thumb": "4529__Rosso-e-ciliegia.jpg"
+      },
+      {
+        "colorway": "Verde bosco e scuri",
+        "thumb": "4529__Verde-bosco-e-scuri.jpg"
+      }
+    ]
+  },
+  {
+    "id": 4503,
+    "name": "Abito Anjeliy Smanicato in velluto",
+    "sku": "ABI-ANJ-VEL-B",
+    "categories": [
+      "Abiti",
+      "Femmina"
+    ],
+    "isMono": false,
+    "primaryThumb": "4503__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Azzurro polvere e denim",
+        "thumb": "4503__Azzurro-polvere-e-denim.jpg"
+      },
+      {
+        "colorway": "Rosa cipria e nude",
+        "thumb": "4503__Rosa-cipria-e-nude.jpg"
+      },
+      {
+        "colorway": "Rosso e ciliegia",
+        "thumb": "4503__Rosso-e-ciliegia.jpg"
+      }
+    ]
+  },
+  {
+    "id": 4466,
+    "name": "Fiocco Personaggi",
+    "sku": "FIO-BAS-COT-MIS-OSI-A",
+    "categories": [
+      "Accessori",
+      "Femmina",
+      "Fiocchi e fermagli"
+    ],
+    "isMono": true,
+    "primaryThumb": "4466__primary.jpg",
+    "colorways": [
+      {
+        "colorway": null,
+        "thumb": "4466__unico.jpg"
+      }
+    ]
+  },
+  {
+    "id": 4449,
+    "name": "Fiocco Fucsia",
+    "sku": "FIO-BAS-COT-FUC-OSI",
+    "categories": [
+      "Femmina",
+      "Fiocchi e fermagli"
+    ],
+    "isMono": true,
+    "primaryThumb": "4449__primary.jpg",
+    "colorways": [
+      {
+        "colorway": null,
+        "thumb": "4449__unico.jpg"
+      }
+    ]
+  },
+  {
+    "id": 4442,
+    "name": "Fiocco Fantasia fiori",
+    "sku": "FIO-BAS-COT-FAN-OSI-A",
+    "categories": [
+      "Accessori",
+      "Femmina",
+      "Fiocchi e fermagli"
+    ],
+    "isMono": true,
+    "primaryThumb": "4442__primary.jpg",
+    "colorways": [
+      {
+        "colorway": null,
+        "thumb": "4442__unico.jpg"
+      }
+    ]
+  },
+  {
+    "id": 4434,
+    "name": "Fiocco elefantini",
+    "sku": "FIO-BAS-COT-FAA-OSI",
+    "categories": [
+      "Accessori",
+      "Femmina",
+      "Fiocchi e fermagli"
+    ],
+    "isMono": true,
+    "primaryThumb": "4434__primary.jpg",
+    "colorways": [
+      {
+        "colorway": null,
+        "thumb": "4434__unico.jpg"
+      }
+    ]
+  },
+  {
+    "id": 4430,
+    "name": "Fiocco Rapunzel",
+    "sku": "FIO-BAS-COT-FAP-OSI-A",
+    "categories": [
+      "Accessori",
+      "Femmina",
+      "Fiocchi e fermagli"
+    ],
+    "isMono": true,
+    "primaryThumb": "4430__primary.jpg",
+    "colorways": [
+      {
+        "colorway": null,
+        "thumb": "4430__unico.jpg"
+      }
+    ]
+  },
+  {
+    "id": 4415,
+    "name": "Scrunchies sfilacciati - Azzurro polvere e denim",
+    "sku": "SCR-BAS-LIN-AZP-OSI",
+    "categories": [
+      "Femmina",
+      "Scrunchies"
+    ],
+    "isMono": false,
+    "primaryThumb": "4415__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Azzurro polvere e denim",
+        "thumb": null
+      }
+    ]
+  },
+  {
+    "id": 4414,
+    "name": "Scrunchies sfilacciati - Giallo e ocra",
+    "sku": "SCR-BAS-COT-GIA-OSI-A",
+    "categories": [
+      "Femmina",
+      "Scrunchies"
+    ],
+    "isMono": false,
+    "primaryThumb": "4414__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Giallo e ocra",
+        "thumb": null
+      }
+    ]
+  },
+  {
+    "id": 4413,
+    "name": "Scrunchies sfilacciati - Lilla e lavanda",
+    "sku": "SCR-BAS-COT-LIL-OSI",
+    "categories": [
+      "Femmina",
+      "Scrunchies"
+    ],
+    "isMono": false,
+    "primaryThumb": "4413__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Lilla e lavanda",
+        "thumb": null
+      }
+    ]
+  },
+  {
+    "id": 4412,
+    "name": "Scrunchies sfilacciati - Panna e avorio",
+    "sku": "SCR-BAS-COT-PNA-OSI",
+    "categories": [
+      "Femmina",
+      "Scrunchies"
+    ],
+    "isMono": false,
+    "primaryThumb": "4412__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Panna e avorio",
+        "thumb": null
+      }
+    ]
+  },
+  {
+    "id": 4411,
+    "name": "Scrunchies sfilacciati - Rosa pastello e antico",
+    "sku": "SCR-BAS-COT-RPA-OSI-A",
+    "categories": [
+      "Femmina",
+      "Scrunchies"
+    ],
+    "isMono": false,
+    "primaryThumb": "4411__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Rosa pastello e antico",
+        "thumb": null
+      }
+    ]
+  },
+  {
+    "id": 4409,
+    "name": "Scrunchies sfilacciati - Verde khaki e militare",
+    "sku": "SCR-BAS-LIN-VKA-OSI",
+    "categories": [
+      "Femmina",
+      "Scrunchies"
+    ],
+    "isMono": false,
+    "primaryThumb": "4409__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Verde khaki e militare",
+        "thumb": null
+      }
+    ]
+  },
+  {
+    "id": 4408,
+    "name": "Scrunchies in cotone - Giallo e ocra",
+    "sku": "SCR-BAS-COT-GIA-OSI-B",
+    "categories": [
+      "Femmina",
+      "Scrunchies"
+    ],
+    "isMono": false,
+    "primaryThumb": "4408__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Giallo e ocra",
+        "thumb": null
+      }
+    ]
+  },
+  {
+    "id": 4407,
+    "name": "Scrunchies in cotone - Rosa pastello e antico",
+    "sku": "SCR-BAS-COT-RPA-OSI-B",
+    "categories": [
+      "Femmina",
+      "Scrunchies"
+    ],
+    "isMono": false,
+    "primaryThumb": "4407__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Rosa pastello e antico",
+        "thumb": null
+      }
+    ]
+  },
+  {
+    "id": 4406,
+    "name": "Scrunchies in cotone - Rosso e ciliegia",
+    "sku": "SCR-BAS-COT-ROS-OSI",
+    "categories": [
+      "Femmina",
+      "Scrunchies"
+    ],
+    "isMono": false,
+    "primaryThumb": "4406__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Rosso e ciliegia",
+        "thumb": null
+      }
+    ]
+  },
+  {
+    "id": 4405,
+    "name": "Scrunchies in cotone - Fantasie: natura",
+    "sku": "SCR-BAS-COT-FAN-OSI",
+    "categories": [
+      "Femmina",
+      "Scrunchies"
+    ],
+    "isMono": false,
+    "primaryThumb": "4405__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Fantasie: natura",
+        "thumb": null
+      }
+    ]
+  },
+  {
+    "id": 4404,
+    "name": "Scrunchies in cotone - Fantasie: personaggi",
+    "sku": "SCR-BAS-COT-FAP-OSI",
+    "categories": [
+      "Femmina",
+      "Scrunchies"
+    ],
+    "isMono": false,
+    "primaryThumb": "4404__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Fantasie: personaggi",
+        "thumb": null
+      }
+    ]
+  },
+  {
+    "id": 4385,
+    "name": "Scrunchies in velluto - Blu e azzurro intenso",
+    "sku": "SCR-BAS-VEL-BLU-OSI",
+    "categories": [
+      "Femmina",
+      "Scrunchies"
+    ],
+    "isMono": false,
+    "primaryThumb": "4385__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Blu e azzurro intenso",
+        "thumb": "4385__Blu-e-azzurro-intenso.jpg"
+      }
+    ]
+  },
+  {
+    "id": 4384,
+    "name": "Scrunchies in velluto - Giallo e ocra",
+    "sku": "SCR-BAS-VEL-GIA-OSI",
+    "categories": [
+      "Femmina",
+      "Scrunchies"
+    ],
+    "isMono": false,
+    "primaryThumb": "4384__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Giallo e ocra",
+        "thumb": null
+      }
+    ]
+  },
+  {
+    "id": 4383,
+    "name": "Scrunchies in velluto - Rosa cipria e nude",
+    "sku": "SCR-BAS-VEL-NDE-OSI",
+    "categories": [
+      "Femmina",
+      "Scrunchies"
+    ],
+    "isMono": false,
+    "primaryThumb": "4383__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Rosa cipria e nude",
+        "thumb": null
+      }
+    ]
+  },
+  {
+    "id": 4382,
+    "name": "Scrunchies in velluto - Rosso e ciliegia",
+    "sku": "SCR-BAS-VEL-ROS-OSI",
+    "categories": [
+      "Femmina",
+      "Scrunchies"
+    ],
+    "isMono": false,
+    "primaryThumb": "4382__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Rosso e ciliegia",
+        "thumb": null
+      }
+    ]
+  },
+  {
+    "id": 4381,
+    "name": "Scrunchies in velluto - Verde bosco e scuri",
+    "sku": "SCR-BAS-VEL-VBO-OSI",
+    "categories": [
+      "Femmina",
+      "Scrunchies"
+    ],
+    "isMono": false,
+    "primaryThumb": "4381__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Verde bosco e scuri",
+        "thumb": "4381__Verde-bosco-e-scuri.jpg"
+      }
+    ]
+  },
+  {
+    "id": 4367,
+    "name": "Yes Bag - Fucsia e rosa vivace",
+    "sku": "BOR-YES-COT-A",
+    "categories": [
+      "Accessori",
+      "Borse",
+      "Femmina"
+    ],
+    "isMono": false,
+    "primaryThumb": "4367__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Fucsia e rosa vivace",
+        "thumb": "4367__Fucsia-e-rosa-vivace.jpg"
+      }
+    ]
+  },
+  {
+    "id": 4364,
+    "name": "Yes Bag - Giallo e ocra",
+    "sku": "BOR-YES-COT-B",
+    "categories": [
+      "Accessori",
+      "Borse",
+      "Femmina"
+    ],
+    "isMono": false,
+    "primaryThumb": "4364__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Giallo e ocra",
+        "thumb": "4364__Giallo-e-ocra.jpg"
+      }
+    ]
+  },
+  {
+    "id": 4361,
+    "name": "Yes Bag - Lilla e lavanda",
+    "sku": "BOR-YES-COT-C",
+    "categories": [
+      "Accessori",
+      "Borse",
+      "Femmina"
+    ],
+    "isMono": false,
+    "primaryThumb": "4361__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Lilla e lavanda",
+        "thumb": null
+      }
+    ]
+  },
+  {
+    "id": 4358,
+    "name": "Yes Bag - Prugna profondo",
+    "sku": "BOR-YES-COT-D",
+    "categories": [
+      "Accessori",
+      "Borse",
+      "Femmina"
+    ],
+    "isMono": false,
+    "primaryThumb": "4358__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Prugna profondo",
+        "thumb": "4358__Prugna-profondo.jpg"
+      }
+    ]
+  },
+  {
+    "id": 4355,
+    "name": "Yes Bag - Rosa pastello e antico",
+    "sku": "BOR-YES-COT-E",
+    "categories": [
+      "Accessori",
+      "Borse",
+      "Femmina"
+    ],
+    "isMono": false,
+    "primaryThumb": "4355__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Rosa pastello e antico",
+        "thumb": "4355__Rosa-pastello-e-antico.jpg"
+      }
+    ]
+  },
+  {
+    "id": 4352,
+    "name": "Yes Bag - Verde salvia e aloe",
+    "sku": "BOR-YES-COT-F",
+    "categories": [
+      "Accessori",
+      "Borse",
+      "Femmina"
+    ],
+    "isMono": false,
+    "primaryThumb": "4352__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Verde salvia e aloe",
+        "thumb": "4352__Verde-salvia-e-aloe.jpg"
+      }
+    ]
+  },
+  {
+    "id": 4261,
+    "name": "Camicia elegante con colletto",
+    "sku": "CAM-010-COT",
+    "categories": [
+      "Camicie &amp; Bluse",
+      "Femmina"
+    ],
+    "isMono": false,
+    "primaryThumb": "4261__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Blu e azzurro intenso",
+        "thumb": "4261__Blu-e-azzurro-intenso.jpg"
+      },
+      {
+        "colorway": "Rosso e ciliegia",
+        "thumb": "4261__Rosso-e-ciliegia.jpg"
+      }
+    ]
+  },
+  {
+    "id": 4252,
+    "name": "Camicia Scacchi con colletto in velluto",
+    "sku": "CAM-011-COT",
+    "categories": [
+      "Camicie &amp; Bluse",
+      "Femmina"
+    ],
+    "isMono": false,
+    "primaryThumb": "4252__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Marrone e mocha",
+        "thumb": "4252__Marrone-e-mocha.jpg"
+      }
+    ]
+  },
+  {
+    "id": 4153,
+    "name": "Camicia con colletto in velluto",
+    "sku": "CAM-012-COT",
+    "categories": [
+      "Camicie &amp; Bluse",
+      "Femmina"
+    ],
+    "isMono": false,
+    "primaryThumb": "4153__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Rosa cipria e nude",
+        "thumb": "4153__Rosa-cipria-e-nude.jpg"
+      },
+      {
+        "colorway": "Verde bosco e scuri",
+        "thumb": "4153__Verde-bosco-e-scuri.jpg"
+      }
+    ]
+  },
+  {
+    "id": 4109,
+    "name": "Camicia in lino manica corta",
+    "sku": "CAM-013-LIN",
+    "categories": [
+      "Camicie &amp; Bluse",
+      "Femmina",
+      "Maschio",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "4109__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Azzurro polvere e denim",
+        "thumb": null
+      },
+      {
+        "colorway": "Panna e avorio",
+        "thumb": "4109__Panna-e-avorio.jpg"
+      },
+      {
+        "colorway": "Verde khaki e militare",
+        "thumb": "4109__Verde-khaki-e-militare.jpg"
+      }
+    ]
+  },
+  {
+    "id": 4081,
+    "name": "Camicia Coreana manica lunga",
+    "sku": "CAM-COR-COT-C",
+    "categories": [
+      "Camicie &amp; Bluse",
+      "Femmina",
+      "Maschio",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "4081__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Azzurro polvere e denim",
+        "thumb": "4081__Azzurro-polvere-e-denim.jpg"
+      }
+    ]
+  },
+  {
+    "id": 4011,
+    "name": "Pantaloncino Voile Nuovo",
+    "sku": "PAS-014-COT",
+    "categories": [
+      "Femmina",
+      "Pantaloncini"
+    ],
+    "isMono": false,
+    "primaryThumb": "4011__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Bianco puro",
+        "thumb": "4011__Bianco-puro.jpg"
+      }
+    ]
+  },
+  {
+    "id": 3998,
+    "name": "Pantaloncino Giraffe Nuovo",
+    "sku": "PAS-015-COT",
+    "categories": [
+      "Pantaloncini",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "3998__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Fantasie: animali",
+        "thumb": "3998__Fantasie-animali.jpg"
+      }
+    ]
+  },
+  {
+    "id": 3975,
+    "name": "Giacca Lino Bianca",
+    "sku": "GIA-016-LIN",
+    "categories": [
+      "Femmina",
+      "Giacche",
+      "Maschio",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "3975__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Panna e avorio",
+        "thumb": "3975__Panna-e-avorio.jpg"
+      }
+    ]
+  },
+  {
+    "id": 3957,
+    "name": "Abito Cerise",
+    "sku": "ABI-CER-COT-B",
+    "categories": [
+      "Abiti",
+      "Femmina"
+    ],
+    "isMono": false,
+    "primaryThumb": "3957__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Fucsia e rosa vivace",
+        "thumb": "3957__Fucsia-e-rosa-vivace.jpg"
+      }
+    ]
+  },
+  {
+    "id": 3940,
+    "name": "Pantalone Lungo Voile",
+    "sku": "PAN-017-VOI",
+    "categories": [
+      "Femmina",
+      "Maschio",
+      "Pantaloni",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "3940__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Panna e avorio",
+        "thumb": "3940__Panna-e-avorio.jpg"
+      }
+    ]
+  },
+  {
+    "id": 3922,
+    "name": "Pantalone lungo mussola",
+    "sku": "PAN-018-MUS",
+    "categories": [
+      "Pantaloni",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "3922__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Marrone e mocha",
+        "thumb": "3922__Marrone-e-mocha.jpg"
+      }
+    ]
+  },
+  {
+    "id": 3801,
+    "name": "Pantaloncino a palloncino mussolina",
+    "sku": "PAS-019-COT",
+    "categories": [
+      "Femmina",
+      "Pantaloncini"
+    ],
+    "isMono": false,
+    "primaryThumb": "3801__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Blu e azzurro intenso",
+        "thumb": "3801__Blu-e-azzurro-intenso.jpg"
+      },
+      {
+        "colorway": "Off-white e cloud",
+        "thumb": "3801__Off-white-e-cloud.jpg"
+      },
+      {
+        "colorway": "Rosa pastello e antico",
+        "thumb": "3801__Rosa-pastello-e-antico.jpg"
+      }
+    ]
+  },
+  {
+    "id": 3782,
+    "name": "Pantaloncino svasato Popline new",
+    "sku": "PAS-020-COT",
+    "categories": [
+      "Femmina",
+      "Maschio",
+      "Pantaloncini",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "3782__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Off-white e cloud",
+        "thumb": "3782__Off-white-e-cloud.jpg"
+      },
+      {
+        "colorway": "Panna e avorio",
+        "thumb": "3782__Panna-e-avorio.jpg"
+      }
+    ]
+  },
+  {
+    "id": 3568,
+    "name": "Camicia Masha manica corta a sbuffo",
+    "sku": "CAM-MAS-COT-C",
+    "categories": [
+      "Camicie &amp; Bluse",
+      "Femmina"
+    ],
+    "isMono": false,
+    "primaryThumb": "3568__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Lilla e lavanda",
+        "thumb": "3568__Lilla-e-lavanda.jpg"
+      }
+    ]
+  },
+  {
+    "id": 3098,
+    "name": "Abito Ariel",
+    "sku": "ABI-ARI-COT-B",
+    "categories": [
+      "Abiti",
+      "Femmina"
+    ],
+    "isMono": false,
+    "primaryThumb": "3098__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Panna e avorio",
+        "thumb": "3098__Panna-e-avorio.jpg"
+      },
+      {
+        "colorway": "Verde khaki e militare",
+        "thumb": "3098__Verde-khaki-e-militare.jpg"
+      }
+    ]
+  },
+  {
+    "id": 2040,
+    "name": "Camicia Smanicata",
+    "sku": "CAM-021-COT",
+    "categories": [
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "2040__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Blu e azzurro intenso",
+        "thumb": null
+      },
+      {
+        "colorway": "Panna e avorio",
+        "thumb": null
+      },
+      {
+        "colorway": "Rosa pastello e antico",
+        "thumb": null
+      }
+    ]
+  },
+  {
+    "id": 2039,
+    "name": "Gonna Salopette in Popeline",
+    "sku": "GON-022-COT",
+    "categories": [
+      "Femmina",
+      "Gonne"
+    ],
+    "isMono": false,
+    "primaryThumb": "2039__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Grigio melange e chiaro",
+        "thumb": "2039__Grigio-melange-e-chiaro.jpg"
+      }
+    ]
+  },
+  {
+    "id": 2038,
+    "name": "Top double-face fantasia marina",
+    "sku": "TSH-023-COT",
+    "categories": [
+      "Femmina",
+      "T-shirt &amp; Top"
+    ],
+    "isMono": true,
+    "primaryThumb": "2038__primary.jpg",
+    "colorways": [
+      {
+        "colorway": null,
+        "thumb": "2038__unico.jpg"
+      }
+    ]
+  },
+  {
+    "id": 2018,
+    "name": "Abito da cerimonia",
+    "sku": "ABI-024-COT",
+    "categories": [
+      "Abiti",
+      "Femmina"
+    ],
+    "isMono": true,
+    "primaryThumb": "2018__primary.jpg",
+    "colorways": [
+      {
+        "colorway": null,
+        "thumb": "2018__unico.jpg"
+      }
+    ]
+  },
+  {
+    "id": 2017,
+    "name": "Top double-face fantasia aquiloni",
+    "sku": "TSH-025-COT",
+    "categories": [
+      "Femmina",
+      "T-shirt &amp; Top"
+    ],
+    "isMono": true,
+    "primaryThumb": "2017__primary.jpg",
+    "colorways": [
+      {
+        "colorway": null,
+        "thumb": "2017__unico.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1975,
+    "name": "Abito double-face",
+    "sku": "ABI-026-COT",
+    "categories": [
+      "Abiti",
+      "Femmina"
+    ],
+    "isMono": false,
+    "primaryThumb": "1975__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Fantasia marina",
+        "thumb": "1975__Fantasia-marina.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1974,
+    "name": "Camicia Fantasia del Bosco",
+    "sku": "CAM-027-COT",
+    "categories": [
+      "Camicie &amp; Bluse",
+      "Unisex"
+    ],
+    "isMono": true,
+    "primaryThumb": "1974__primary.jpg",
+    "colorways": [
+      {
+        "colorway": null,
+        "thumb": "1974__unico.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1973,
+    "name": "Abito Fantasia Ciliegine",
+    "sku": "ABI-028-COT",
+    "categories": [
+      "Abiti",
+      "Femmina"
+    ],
+    "isMono": true,
+    "primaryThumb": "1973__primary.jpg",
+    "colorways": [
+      {
+        "colorway": null,
+        "thumb": "1973__unico.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1972,
+    "name": "Pantalone Cropped in Gabardina",
+    "sku": "PAN-029-COT",
+    "categories": [
+      "Pantaloni",
+      "Unisex"
+    ],
+    "isMono": true,
+    "primaryThumb": "1972__primary.jpg",
+    "colorways": [
+      {
+        "colorway": null,
+        "thumb": "1972__unico.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1968,
+    "name": "Abito smanicato Fantasia",
+    "sku": "ABI-030-COT",
+    "categories": [
+      "Abiti",
+      "Femmina"
+    ],
+    "isMono": false,
+    "primaryThumb": "1968__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Fantasia marina",
+        "thumb": null
+      },
+      {
+        "colorway": "Fantasie: natura",
+        "thumb": null
+      }
+    ]
+  },
+  {
+    "id": 1936,
+    "name": "Pantaloncino a palloncino",
+    "sku": "PAN-031-COT",
+    "categories": [
+      "Femmina",
+      "Pantaloni"
+    ],
+    "isMono": false,
+    "primaryThumb": "1936__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Fucsia e rosa vivace",
+        "thumb": "1936__Fucsia-e-rosa-vivace.jpg"
+      },
+      {
+        "colorway": "Grigio melange e chiaro",
+        "thumb": "1936__Grigio-melange-e-chiaro.jpg"
+      },
+      {
+        "colorway": "Panna e avorio",
+        "thumb": "1936__Panna-e-avorio.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1911,
+    "name": "Camicia alla Coreana in Mussola",
+    "sku": "CAM-COR-MUS-B",
+    "categories": [
+      "Camicie &amp; Bluse",
+      "Maschio"
+    ],
+    "isMono": false,
+    "primaryThumb": "1911__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Azzurro polvere e denim",
+        "thumb": "1911__Azzurro-polvere-e-denim.jpg"
+      },
+      {
+        "colorway": "Bianco puro",
+        "thumb": "1911__Bianco-puro.jpg"
+      },
+      {
+        "colorway": "Giallo e ocra",
+        "thumb": "1911__Giallo-e-ocra.jpg"
+      },
+      {
+        "colorway": "Panna e avorio",
+        "thumb": null
+      },
+      {
+        "colorway": "Rosa pastello e antico",
+        "thumb": "1911__Rosa-pastello-e-antico.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1910,
+    "name": "Camicia Smanicata fantasia Zebra",
+    "sku": "CAM-032-COT",
+    "categories": [
+      "Camicie &amp; Bluse",
+      "Unisex"
+    ],
+    "isMono": true,
+    "primaryThumb": "1910__primary.jpg",
+    "colorways": [
+      {
+        "colorway": null,
+        "thumb": "1910__unico.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1870,
+    "name": "Pantalone Cropped in Popeline Giraffe",
+    "sku": "PAN-033-COT",
+    "categories": [
+      "Pantaloni",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "1870__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Fantasie: animali",
+        "thumb": "1870__Fantasie-animali.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1869,
+    "name": "Abito da cerimonia in velluto",
+    "sku": "ABI-034-VEL",
+    "categories": [
+      "Abiti",
+      "Femmina"
+    ],
+    "isMono": false,
+    "primaryThumb": "1869__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Azzurro polvere e denim",
+        "thumb": "1869__Azzurro-polvere-e-denim.jpg"
+      },
+      {
+        "colorway": "Bordeaux e mattone",
+        "thumb": "1869__Bordeaux-e-mattone.jpg"
+      },
+      {
+        "colorway": "Verde khaki e militare",
+        "thumb": null
+      }
+    ]
+  },
+  {
+    "id": 1831,
+    "name": "Pantalone in felpa",
+    "sku": "FEL-114-COT",
+    "categories": [
+      "Felpe &amp; Maglieria",
+      "Femmina",
+      "Maschio",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "1831__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Bordeaux e mattone",
+        "thumb": null
+      },
+      {
+        "colorway": "Verde khaki e militare",
+        "thumb": "1831__Verde-khaki-e-militare.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1830,
+    "name": "Camicia Fantasia Gatti Boy",
+    "sku": "CAM-035-COT",
+    "categories": [
+      "Camicie &amp; Bluse",
+      "Maschio"
+    ],
+    "isMono": true,
+    "primaryThumb": "1830__primary.jpg",
+    "colorways": [
+      {
+        "colorway": null,
+        "thumb": "1830__unico.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1789,
+    "name": "Maglia felpata",
+    "sku": "FEL-036-COT",
+    "categories": [
+      "Felpe &amp; Maglieria",
+      "Femmina",
+      "Maschio"
+    ],
+    "isMono": false,
+    "primaryThumb": "1789__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Bering sea",
+        "thumb": "1789__Bering-sea.jpg"
+      },
+      {
+        "colorway": "Panna e avorio",
+        "thumb": "1789__Panna-e-avorio.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1788,
+    "name": "Camicietta fantasia Gatti Girl",
+    "sku": "CAM-037-VEL",
+    "categories": [
+      "Camicie &amp; Bluse",
+      "Femmina"
+    ],
+    "isMono": true,
+    "primaryThumb": "1788__primary.jpg",
+    "colorways": [
+      {
+        "colorway": null,
+        "thumb": "1788__unico.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1787,
+    "name": "T-shirt a righe con taschino",
+    "sku": "TSH-038-COT",
+    "categories": [
+      "Femmina",
+      "Maschio",
+      "T-shirt &amp; Top"
+    ],
+    "isMono": false,
+    "primaryThumb": "1787__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Bianco puro",
+        "thumb": null
+      },
+      {
+        "colorway": "Off-white e cloud",
+        "thumb": null
+      }
+    ]
+  },
+  {
+    "id": 1746,
+    "name": "Tutina Smanicata",
+    "sku": "BOD-039-COT",
+    "categories": [
+      "Body &amp; Tutine",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "1746__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Bering sea",
+        "thumb": "1746__Bering-sea.jpg"
+      },
+      {
+        "colorway": "Bordeaux e mattone",
+        "thumb": "1746__Bordeaux-e-mattone.jpg"
+      },
+      {
+        "colorway": "Verde bosco e scuri",
+        "thumb": "1746__Verde-bosco-e-scuri.jpg"
+      },
+      {
+        "colorway": "Verde khaki e militare",
+        "thumb": "1746__Verde-khaki-e-militare.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1710,
+    "name": "Tutina smanicata con fiocco",
+    "sku": "BOD-040-VEL",
+    "categories": [
+      "Body &amp; Tutine",
+      "Femmina"
+    ],
+    "isMono": false,
+    "primaryThumb": "1710__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Azzurro polvere e denim",
+        "thumb": "1710__Azzurro-polvere-e-denim.jpg"
+      },
+      {
+        "colorway": "Bordeaux e mattone",
+        "thumb": "1710__Bordeaux-e-mattone.jpg"
+      },
+      {
+        "colorway": "Verde bosco e scuri",
+        "thumb": "1710__Verde-bosco-e-scuri.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1709,
+    "name": "Pantaloni Salopette Unisex",
+    "sku": "PAN-041-MIL",
+    "categories": [
+      "Femmina",
+      "Maschio",
+      "Pantaloni",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "1709__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Blu navy e notte",
+        "thumb": "1709__Blu-navy-e-notte.jpg"
+      },
+      {
+        "colorway": "Marrone e mocha",
+        "thumb": "1709__Marrone-e-mocha.jpg"
+      },
+      {
+        "colorway": "Verde khaki e militare",
+        "thumb": "1709__Verde-khaki-e-militare.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1642,
+    "name": "Gonna Salopette in Velluto",
+    "sku": "GON-042-VEL",
+    "categories": [
+      "Femmina",
+      "Gonne"
+    ],
+    "isMono": false,
+    "primaryThumb": "1642__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Azzurro polvere e denim",
+        "thumb": null
+      },
+      {
+        "colorway": "Bordeaux e mattone",
+        "thumb": null
+      },
+      {
+        "colorway": "Verde khaki e militare",
+        "thumb": null
+      }
+    ]
+  },
+  {
+    "id": 1595,
+    "name": "Camicia Masha manica lunga a sbuffo",
+    "sku": "CAM-MAS-MUS-C",
+    "categories": [
+      "Camicie &amp; Bluse",
+      "Femmina"
+    ],
+    "isMono": false,
+    "primaryThumb": "1595__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Lilla e lavanda",
+        "thumb": null
+      },
+      {
+        "colorway": "Rosa pastello e antico",
+        "thumb": null
+      }
+    ]
+  },
+  {
+    "id": 1594,
+    "name": "Gonna Masha bicolore Flower",
+    "sku": "GON-MAS-COT-D",
+    "categories": [
+      "Femmina",
+      "Gonne"
+    ],
+    "isMono": false,
+    "primaryThumb": "1594__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Fantasie: natura",
+        "thumb": "1594__Fantasie-natura.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1593,
+    "name": "Camicia Capri manica lunga",
+    "sku": "CAM-CPR-LIN-E",
+    "categories": [
+      "Camicie &amp; Bluse",
+      "Femmina",
+      "Maschio",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "1593__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Panna e avorio",
+        "thumb": "1593__Panna-e-avorio.jpg"
+      },
+      {
+        "colorway": "Verde khaki e militare",
+        "thumb": "1593__Verde-khaki-e-militare.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1560,
+    "name": "Maglietta a righe",
+    "sku": "TSH-043-COT",
+    "categories": [
+      "Femmina",
+      "Maschio",
+      "T-shirt &amp; Top",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "1560__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Lilla e lavanda",
+        "thumb": "1560__Lilla-e-lavanda.jpg"
+      },
+      {
+        "colorway": "Verde salvia e aloe",
+        "thumb": "1560__Verde-salvia-e-aloe.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1506,
+    "name": "Abito Charlotte smanicato in mussola",
+    "sku": "ABI-CHA-COT-C",
+    "categories": [
+      "Abiti",
+      "Femmina"
+    ],
+    "isMono": false,
+    "primaryThumb": "1506__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Azzurro polvere e denim",
+        "thumb": "1506__Azzurro-polvere-e-denim.jpg"
+      },
+      {
+        "colorway": "Giallo e ocra",
+        "thumb": "1506__Giallo-e-ocra.jpg"
+      },
+      {
+        "colorway": "Lilla e lavanda",
+        "thumb": "1506__Lilla-e-lavanda.jpg"
+      },
+      {
+        "colorway": "Off-white e cloud",
+        "thumb": "1506__Off-white-e-cloud.jpg"
+      },
+      {
+        "colorway": "Panna e avorio",
+        "thumb": "1506__Panna-e-avorio.jpg"
+      },
+      {
+        "colorway": "Rosa cipria e nude",
+        "thumb": "1506__Rosa-cipria-e-nude.jpg"
+      },
+      {
+        "colorway": "Rosso e ciliegia",
+        "thumb": "1506__Rosso-e-ciliegia.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1488,
+    "name": "Abito Charlotte smanicato in lino",
+    "sku": "ABI-CHA-LIN-C",
+    "categories": [
+      "Abiti",
+      "Femmina"
+    ],
+    "isMono": false,
+    "primaryThumb": "1488__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Azzurro polvere e denim",
+        "thumb": "1488__Azzurro-polvere-e-denim.jpg"
+      },
+      {
+        "colorway": "Panna e avorio",
+        "thumb": "1488__Panna-e-avorio.jpg"
+      },
+      {
+        "colorway": "Verde khaki e militare",
+        "thumb": "1488__Verde-khaki-e-militare.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1487,
+    "name": "Abito Charlotte smanicato in voile",
+    "sku": "ABI-CHA-VOI-B",
+    "categories": [
+      "Abiti",
+      "Femmina"
+    ],
+    "isMono": false,
+    "primaryThumb": "1487__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Rosa cipria e nude",
+        "thumb": "1487__Rosa-cipria-e-nude.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1486,
+    "name": "Abito Masha smanicato bicolore Flower",
+    "sku": "ABI-MAS-COT-C",
+    "categories": [
+      "Abiti",
+      "Femmina"
+    ],
+    "isMono": false,
+    "primaryThumb": "1486__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Fantasie: natura",
+        "thumb": "1486__Fantasie-natura.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1449,
+    "name": "Abito Masha smanicato bicolore Elefantini",
+    "sku": "ABI-MAS-COT-D",
+    "categories": [
+      "Abiti",
+      "Femmina"
+    ],
+    "isMono": false,
+    "primaryThumb": "1449__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Prugna profondo",
+        "thumb": "1449__Prugna-profondo.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1423,
+    "name": "Camicia Masha manica scampanata",
+    "sku": "CAM-MAS-MUS-D",
+    "categories": [
+      "Camicie &amp; Bluse",
+      "Femmina"
+    ],
+    "isMono": false,
+    "primaryThumb": "1423__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Giallo e ocra",
+        "thumb": "1423__Giallo-e-ocra.jpg"
+      },
+      {
+        "colorway": "Lilla e lavanda",
+        "thumb": "1423__Lilla-e-lavanda.jpg"
+      },
+      {
+        "colorway": "Rosso e ciliegia",
+        "thumb": "1423__Rosso-e-ciliegia.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1385,
+    "name": "Camicia George in Mussola",
+    "sku": "CAM-GEO-MUS-B",
+    "categories": [
+      "Camicie &amp; Bluse",
+      "Femmina",
+      "Maschio",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "1385__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Blu navy e notte",
+        "thumb": "1385__Blu-navy-e-notte.jpg"
+      },
+      {
+        "colorway": "Bordeaux e mattone",
+        "thumb": "1385__Bordeaux-e-mattone.jpg"
+      },
+      {
+        "colorway": "Giallo e ocra",
+        "thumb": "1385__Giallo-e-ocra.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1384,
+    "name": "Camicia Capri manica corta",
+    "sku": "CAM-CPR-LIN-F",
+    "categories": [
+      "Camicie &amp; Bluse",
+      "Femmina",
+      "Maschio",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "1384__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Ecru e lino naturale",
+        "thumb": null
+      },
+      {
+        "colorway": "Rosa cipria e nude",
+        "thumb": "1384__Rosa-cipria-e-nude.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1305,
+    "name": "Camicia alla Coreana in Lino",
+    "sku": "CAM-COR-COT-D",
+    "categories": [
+      "Camicie &amp; Bluse",
+      "Femmina",
+      "Maschio",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "1305__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Azzurro polvere e denim",
+        "thumb": "1305__Azzurro-polvere-e-denim.jpg"
+      },
+      {
+        "colorway": "Blu navy e notte",
+        "thumb": "1305__Blu-navy-e-notte.jpg"
+      },
+      {
+        "colorway": "Celeste lino e polvere",
+        "thumb": null
+      },
+      {
+        "colorway": "Ecru e lino naturale",
+        "thumb": "1305__Ecru-e-lino-naturale.jpg"
+      },
+      {
+        "colorway": "Panna e avorio",
+        "thumb": "1305__Panna-e-avorio.jpg"
+      },
+      {
+        "colorway": "Verde khaki e militare",
+        "thumb": "1305__Verde-khaki-e-militare.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1304,
+    "name": "Giacca in Lino",
+    "sku": "GIA-044-LIN",
+    "categories": [
+      "Femmina",
+      "Giacche",
+      "Maschio",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "1304__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Verde khaki e militare",
+        "thumb": "1304__Verde-khaki-e-militare.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1303,
+    "name": "Giacca in Denim",
+    "sku": "GIA-045-COT-MIS-OSI",
+    "categories": [
+      "Femmina",
+      "Giacche",
+      "Maschio",
+      "Unisex"
+    ],
+    "isMono": true,
+    "primaryThumb": "1303__primary.jpg",
+    "colorways": [
+      {
+        "colorway": null,
+        "thumb": "1303__unico.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1242,
+    "name": "Abito Masha smanicato bicolore Giraffe",
+    "sku": "ABI-MAS-COT-E",
+    "categories": [
+      "Abiti",
+      "Femmina"
+    ],
+    "isMono": false,
+    "primaryThumb": "1242__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Fantasie: animali",
+        "thumb": "1242__Fantasie-animali.jpg"
+      },
+      {
+        "colorway": "Fantasie: personaggi",
+        "thumb": null
+      }
+    ]
+  },
+  {
+    "id": 1240,
+    "name": "Gonna Masha bicolore Principe Ranocchio",
+    "sku": "GON-MAS-COT-E",
+    "categories": [
+      "Femmina",
+      "Gonne"
+    ],
+    "isMono": false,
+    "primaryThumb": "1240__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Fantasie: animali",
+        "thumb": null
+      },
+      {
+        "colorway": "Fantasie: personaggi",
+        "thumb": "1240__Fantasie-personaggi.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1195,
+    "name": "Gonna Masha bicolore Giraffe",
+    "sku": "GON-MAS-COT-F",
+    "categories": [
+      "Femmina",
+      "Gonne"
+    ],
+    "isMono": false,
+    "primaryThumb": "1195__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Fantasie: animali",
+        "thumb": null
+      }
+    ]
+  },
+  {
+    "id": 1194,
+    "name": "Camicia Masha manica corta a sbuffo",
+    "sku": "CAM-MAS-COT-D",
+    "categories": [
+      "Camicie &amp; Bluse",
+      "Femmina"
+    ],
+    "isMono": false,
+    "primaryThumb": "1194__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Fantasie: natura",
+        "thumb": "1194__Fantasie-natura.jpg"
+      },
+      {
+        "colorway": "Fucsia e rosa vivace",
+        "thumb": "1194__Fucsia-e-rosa-vivace.jpg"
+      },
+      {
+        "colorway": "Giallo e ocra",
+        "thumb": "1194__Giallo-e-ocra.jpg"
+      },
+      {
+        "colorway": "Panna e avorio",
+        "thumb": "1194__Panna-e-avorio.jpg"
+      },
+      {
+        "colorway": "Rosa cipria e nude",
+        "thumb": "1194__Rosa-cipria-e-nude.jpg"
+      },
+      {
+        "colorway": "Rosa pastello e antico",
+        "thumb": "1194__Rosa-pastello-e-antico.jpg"
+      },
+      {
+        "colorway": "Rosso e ciliegia",
+        "thumb": "1194__Rosso-e-ciliegia.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1165,
+    "name": "Pantalocino Capri  sfilacciato",
+    "sku": "PAN-CPR-LIN-B",
+    "categories": [
+      "Femmina",
+      "Maschio",
+      "Pantaloni",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "1165__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Panna e avorio",
+        "thumb": "1165__Panna-e-avorio.jpg"
+      },
+      {
+        "colorway": "Verde khaki e militare",
+        "thumb": "1165__Verde-khaki-e-militare.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1164,
+    "name": "Pantalone Capri sfilacciato",
+    "sku": "PAN-CPR-COT-B",
+    "categories": [
+      "Femmina",
+      "Maschio",
+      "Pantaloni",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "1164__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Ecru e lino naturale",
+        "thumb": "1164__Ecru-e-lino-naturale.jpg"
+      },
+      {
+        "colorway": "Verde khaki e militare",
+        "thumb": "1164__Verde-khaki-e-militare.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1099,
+    "name": "Pantaloncino Capri",
+    "sku": "PAS-CPR-LIN-D",
+    "categories": [
+      "Femmina",
+      "Maschio",
+      "Pantaloncini",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "1099__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Azzurro polvere e denim",
+        "thumb": "1099__Azzurro-polvere-e-denim.jpg"
+      },
+      {
+        "colorway": "Blu navy e notte",
+        "thumb": "1099__Blu-navy-e-notte.jpg"
+      },
+      {
+        "colorway": "Celeste lino e polvere",
+        "thumb": "1099__Celeste-lino-e-polvere.jpg"
+      },
+      {
+        "colorway": "Ecru e lino naturale",
+        "thumb": "1099__Ecru-e-lino-naturale.jpg"
+      },
+      {
+        "colorway": "Panna e avorio",
+        "thumb": "1099__Panna-e-avorio.jpg"
+      },
+      {
+        "colorway": "Verde khaki e militare",
+        "thumb": "1099__Verde-khaki-e-militare.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1035,
+    "name": "Pantalone Capri",
+    "sku": "PAN-CPR-LIN-C",
+    "categories": [
+      "Femmina",
+      "Maschio",
+      "Pantaloni",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "1035__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Ecru e lino naturale",
+        "thumb": "1035__Ecru-e-lino-naturale.jpg"
+      },
+      {
+        "colorway": "Rosa cipria e nude",
+        "thumb": "1035__Rosa-cipria-e-nude.jpg"
+      },
+      {
+        "colorway": "Verde khaki e militare",
+        "thumb": "1035__Verde-khaki-e-militare.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1034,
+    "name": "Giacca in Denim sfoderata",
+    "sku": "GIA-046-DEN",
+    "categories": [
+      "Giacche",
+      "Maschio"
+    ],
+    "isMono": false,
+    "primaryThumb": "1034__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Azzurro polvere e denim",
+        "thumb": "1034__Azzurro-polvere-e-denim.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1008,
+    "name": "Pantalone Capri Cargo",
+    "sku": "PAN-CPR-LIN-D",
+    "categories": [
+      "Femmina",
+      "Maschio",
+      "Pantaloni",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "1008__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Panna e avorio",
+        "thumb": "1008__Panna-e-avorio.jpg"
+      },
+      {
+        "colorway": "Verde khaki e militare",
+        "thumb": "1008__Verde-khaki-e-militare.jpg"
+      }
+    ]
+  },
+  {
+    "id": 1007,
+    "name": "Tutina smanicata Principe Ranocchio",
+    "sku": "BOD-047-COT",
+    "categories": [
+      "Body &amp; Tutine",
+      "Femmina",
+      "Maschio",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "1007__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Fantasie: personaggi",
+        "thumb": "1007__Fantasie-personaggi.jpg"
+      }
+    ]
+  },
+  {
+    "id": 955,
+    "name": "Pantalone Cropped in Popeline",
+    "sku": "PAN-048-COT",
+    "categories": [
+      "Femmina",
+      "Maschio",
+      "Pantaloni",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "955__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Azzurro polvere e denim",
+        "thumb": "955__Azzurro-polvere-e-denim.jpg"
+      },
+      {
+        "colorway": "Panna e avorio",
+        "thumb": "955__Panna-e-avorio.jpg"
+      },
+      {
+        "colorway": "Rosa pastello e antico",
+        "thumb": "955__Rosa-pastello-e-antico.jpg"
+      }
+    ]
+  },
+  {
+    "id": 954,
+    "name": "Pantalone Cropped in Popeline",
+    "sku": "PAN-049-COT",
+    "categories": [
+      "Femmina",
+      "Maschio",
+      "Pantaloni",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "954__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Grigio melange e chiaro",
+        "thumb": "954__Grigio-melange-e-chiaro.jpg"
+      }
+    ]
+  },
+  {
+    "id": 953,
+    "name": "Camicia manica corta Giraffe",
+    "sku": "CAM-050-COT",
+    "categories": [
+      "Camicie &amp; Bluse",
+      "Femmina",
+      "Maschio",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "953__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Fantasie: animali",
+        "thumb": "953__Fantasie-animali.jpg"
+      }
+    ]
+  },
+  {
+    "id": 918,
+    "name": "Camicia in Voile",
+    "sku": "CAM-051-VOI",
+    "categories": [
+      "Camicie &amp; Bluse",
+      "Femmina"
+    ],
+    "isMono": true,
+    "primaryThumb": "918__primary.jpg",
+    "colorways": [
+      {
+        "colorway": null,
+        "thumb": "918__unico.jpg"
+      }
+    ]
+  },
+  {
+    "id": 892,
+    "name": "Felpa Lilo",
+    "sku": "FEL-LIL-COT-B",
+    "categories": [
+      "Felpe &amp; Maglieria",
+      "Femmina",
+      "Maschio",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "892__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Bianco puro",
+        "thumb": "892__Bianco-puro.jpg"
+      },
+      {
+        "colorway": "Lilla e lavanda",
+        "thumb": "892__Lilla-e-lavanda.jpg"
+      },
+      {
+        "colorway": "Verde salvia e aloe",
+        "thumb": "892__Verde-salvia-e-aloe.jpg"
+      }
+    ]
+  },
+  {
+    "id": 891,
+    "name": "Pantaloncino svasato mussola",
+    "sku": "PAS-052-MUS",
+    "categories": [
+      "Femmina",
+      "Maschio",
+      "Pantaloncini",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "891__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Rosa pastello e antico",
+        "thumb": "891__Rosa-pastello-e-antico.jpg"
+      },
+      {
+        "colorway": "Rosso e ciliegia",
+        "thumb": null
+      }
+    ]
+  },
+  {
+    "id": 849,
+    "name": "Fiocco Rosa",
+    "sku": "FIO-BAS-COT-MIS-OSI-B",
+    "categories": [
+      "Accessori",
+      "Femmina",
+      "Fiocchi e fermagli"
+    ],
+    "isMono": true,
+    "primaryThumb": "849__primary.jpg",
+    "colorways": [
+      {
+        "colorway": null,
+        "thumb": "849__unico.jpg"
+      }
+    ]
+  },
+  {
+    "id": 843,
+    "name": "Fiocco Verde Principe Ranocchio",
+    "sku": "FIO-BAS-COT-FAP-OSI-B",
+    "categories": [
+      "Accessori",
+      "Femmina",
+      "Fiocchi e fermagli"
+    ],
+    "isMono": true,
+    "primaryThumb": "843__primary.jpg",
+    "colorways": [
+      {
+        "colorway": null,
+        "thumb": "843__unico.jpg"
+      }
+    ]
+  },
+  {
+    "id": 780,
+    "name": "Fermaglio Flower",
+    "sku": "FIO-BAS-COT-FAN-OSI-B",
+    "categories": [
+      "Accessori",
+      "Femmina",
+      "Fiocchi e fermagli"
+    ],
+    "isMono": true,
+    "primaryThumb": "780__primary.jpg",
+    "colorways": [
+      {
+        "colorway": null,
+        "thumb": "780__unico.jpg"
+      }
+    ]
+  },
+  {
+    "id": 775,
+    "name": "Fermaglio Écru",
+    "sku": "FIO-BAS-COT-ECR-OSI",
+    "categories": [
+      "Accessori",
+      "Femmina",
+      "Fiocchi e fermagli"
+    ],
+    "isMono": true,
+    "primaryThumb": "775__primary.jpg",
+    "colorways": [
+      {
+        "colorway": null,
+        "thumb": "775__unico.jpg"
+      }
+    ]
+  },
+  {
+    "id": 770,
+    "name": "Cerchietto in cotone Flower",
+    "sku": "CER-BAS-COT-FAN-OSI",
+    "categories": [
+      "Accessori",
+      "Cerchietti",
+      "Femmina"
+    ],
+    "isMono": true,
+    "primaryThumb": "770__primary.jpg",
+    "colorways": [
+      {
+        "colorway": null,
+        "thumb": "770__unico.jpg"
+      }
+    ]
+  },
+  {
+    "id": 765,
+    "name": "Cerchietto in cotone Écru",
+    "sku": "CER-BAS-COT-ECR-OSI",
+    "categories": [
+      "Accessori",
+      "Cerchietti",
+      "Femmina"
+    ],
+    "isMono": true,
+    "primaryThumb": "765__primary.jpg",
+    "colorways": [
+      {
+        "colorway": null,
+        "thumb": "765__unico.jpg"
+      }
+    ]
+  },
+  {
+    "id": 760,
+    "name": "Cerchietto in cotone Fantasia Animali",
+    "sku": "CER-BAS-COT-FAA-OSI",
+    "categories": [
+      "Accessori",
+      "Cerchietti",
+      "Femmina"
+    ],
+    "isMono": true,
+    "primaryThumb": "760__primary.jpg",
+    "colorways": [
+      {
+        "colorway": null,
+        "thumb": "760__unico.jpg"
+      }
+    ]
+  },
+  {
+    "id": 757,
+    "name": "Fiocco Flower",
+    "sku": "FIO-BAS-COT-B",
+    "categories": [
+      "Femmina",
+      "Fiocchi e fermagli"
+    ],
+    "isMono": true,
+    "primaryThumb": "757__primary.jpg",
+    "colorways": [
+      {
+        "colorway": null,
+        "thumb": "757__unico.jpg"
+      }
+    ]
+  },
+  {
+    "id": 735,
+    "name": "Fiocco Salvia Animali",
+    "sku": "FIO-BAS-COT-C",
+    "categories": [
+      "Accessori",
+      "Femmina",
+      "Fiocchi e fermagli"
+    ],
+    "isMono": true,
+    "primaryThumb": "735__primary.jpg",
+    "colorways": [
+      {
+        "colorway": null,
+        "thumb": "735__unico.jpg"
+      }
+    ]
+  },
+  {
+    "id": 732,
+    "name": "Borsa Capri Bag",
+    "sku": "BOR-CPR-COT",
+    "categories": [
+      "Borse",
+      "Femmina"
+    ],
+    "isMono": false,
+    "primaryThumb": "732__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Blu e azzurro intenso",
+        "thumb": null
+      },
+      {
+        "colorway": "Bordeaux e mattone",
+        "thumb": null
+      },
+      {
+        "colorway": "Fucsia e rosa vivace",
+        "thumb": null
+      },
+      {
+        "colorway": "Verde salvia e aloe",
+        "thumb": null
+      }
+    ]
+  },
+  {
+    "id": 722,
+    "name": "Fiocco Écru",
+    "sku": "FIO-BAS-COT-D",
+    "categories": [
+      "Accessori",
+      "Femmina",
+      "Fiocchi e fermagli"
+    ],
+    "isMono": true,
+    "primaryThumb": "722__primary.jpg",
+    "colorways": [
+      {
+        "colorway": null,
+        "thumb": "722__unico.jpg"
+      }
+    ]
+  },
+  {
+    "id": 709,
+    "name": "Cerchietti in velluto",
+    "sku": "CER-BAS-COT-A",
+    "categories": [
+      "Cerchietti",
+      "Femmina"
+    ],
+    "isMono": false,
+    "primaryThumb": "709__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Azzurro polvere e denim",
+        "thumb": "709__Azzurro-polvere-e-denim.jpg"
+      },
+      {
+        "colorway": "Bordeaux e mattone",
+        "thumb": "709__Bordeaux-e-mattone.jpg"
+      },
+      {
+        "colorway": "Rosso e ciliegia",
+        "thumb": "709__Rosso-e-ciliegia.jpg"
+      },
+      {
+        "colorway": "Verde khaki e militare",
+        "thumb": "709__Verde-khaki-e-militare.jpg"
+      }
+    ]
+  },
+  {
+    "id": 537,
+    "name": "T-shirt classica in cotone organico",
+    "sku": "TSH-115-COT",
+    "categories": [
+      "Femmina",
+      "Maschio",
+      "T-shirt &amp; Top",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "537__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Antracite e grigio scuro",
+        "thumb": null
+      },
+      {
+        "colorway": "Beige e sabbia",
+        "thumb": null
+      },
+      {
+        "colorway": "Bianco puro",
+        "thumb": null
+      },
+      {
+        "colorway": "Blu e azzurro intenso",
+        "thumb": null
+      },
+      {
+        "colorway": "Blu navy e notte",
+        "thumb": null
+      },
+      {
+        "colorway": "Bordeaux e mattone",
+        "thumb": null
+      },
+      {
+        "colorway": "Marrone e mocha",
+        "thumb": null
+      },
+      {
+        "colorway": "Nero",
+        "thumb": null
+      },
+      {
+        "colorway": "Off-white e cloud",
+        "thumb": null
+      },
+      {
+        "colorway": "Panna e avorio",
+        "thumb": null
+      },
+      {
+        "colorway": "Rosso e ciliegia",
+        "thumb": null
+      },
+      {
+        "colorway": "Verde khaki e militare",
+        "thumb": null
+      },
+      {
+        "colorway": "Verde salvia e aloe",
+        "thumb": null
+      }
+    ]
+  },
+  {
+    "id": 437,
+    "name": "T-shirt oversize",
+    "sku": "TSH-116-COT",
+    "categories": [
+      "Femmina",
+      "Maschio",
+      "T-shirt &amp; Top",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "437__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Beige e sabbia",
+        "thumb": null
+      },
+      {
+        "colorway": "Blu navy e notte",
+        "thumb": null
+      },
+      {
+        "colorway": "Ecru e lino naturale",
+        "thumb": null
+      },
+      {
+        "colorway": "Fucsia e rosa vivace",
+        "thumb": null
+      },
+      {
+        "colorway": "Marrone e mocha",
+        "thumb": null
+      },
+      {
+        "colorway": "Nero",
+        "thumb": null
+      },
+      {
+        "colorway": "Verde khaki e militare",
+        "thumb": null
+      },
+      {
+        "colorway": "Viola",
+        "thumb": null
+      }
+    ]
+  },
+  {
+    "id": 415,
+    "name": "T-shirt bimbi oversize",
+    "sku": "TSH-117-COT",
+    "categories": [
+      "Femmina",
+      "Maschio",
+      "T-shirt &amp; Top",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "415__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Beige e sabbia",
+        "thumb": null
+      },
+      {
+        "colorway": "Blu navy e notte",
+        "thumb": null
+      },
+      {
+        "colorway": "Panna e avorio",
+        "thumb": null
+      },
+      {
+        "colorway": "Rosa pastello e antico",
+        "thumb": null
+      }
+    ]
+  },
+  {
+    "id": 286,
+    "name": "T-shirt Bimbi",
+    "sku": "TSH-120-COT",
+    "categories": [
+      "Femmina",
+      "Maschio",
+      "T-shirt &amp; Top",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "286__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Arancione",
+        "thumb": null
+      },
+      {
+        "colorway": "Giallo e burro",
+        "thumb": null
+      },
+      {
+        "colorway": "Bianco puro",
+        "thumb": null
+      },
+      {
+        "colorway": "Blu e azzurro intenso",
+        "thumb": null
+      },
+      {
+        "colorway": "Blu navy e notte",
+        "thumb": null
+      },
+      {
+        "colorway": "Bordeaux e mattone",
+        "thumb": "286__Bordeaux-e-mattone.jpg"
+      },
+      {
+        "colorway": "Ecru e lino naturale",
+        "thumb": null
+      },
+      {
+        "colorway": "Rosa cipria e nude",
+        "thumb": null
+      },
+      {
+        "colorway": "Rosso e ciliegia",
+        "thumb": null
+      },
+      {
+        "colorway": "Verde salvia e aloe",
+        "thumb": null
+      },
+      {
+        "colorway": "Viola",
+        "thumb": null
+      }
+    ]
+  },
+  {
+    "id": 245,
+    "name": "Felpa",
+    "sku": "TSH-053-COT",
+    "categories": [
+      "Felpe &amp; Maglieria",
+      "Femmina",
+      "Maschio",
+      "T-shirt &amp; Top",
+      "Unisex"
+    ],
+    "isMono": false,
+    "primaryThumb": "245__primary.jpg",
+    "colorways": [
+      {
+        "colorway": "Rosa pastello e antico",
+        "thumb": null
+      }
+    ]
+  }
+]

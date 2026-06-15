@@ -34,6 +34,10 @@ yarn-error.log*
 /tmp/
 /.tmp_media/
 /data/tmp-*
+/.dev-*.log
+
+# reconcile working artifacts (regenerable; deploy copy lives in public/reconcile/)
+/data/reconcile/
 
 # env files (can opt-in for committing if needed)
 .env*
