@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server';
-import { hasDatabaseConnection, readJsonValue, writeJsonValue } from '@/lib/server/db';
+import {
+  ensureInitialDatabaseCompaction,
+  hasDatabaseConnection,
+  readJsonValue,
+  writeJsonValue,
+} from '@/lib/server/db';
 
 type AmbientazioneSetting = {
   id: string;
@@ -118,7 +123,15 @@ function normalizeState(input: unknown): PersistedAppState {
       projectId,
       Object.fromEntries(
         Object.entries(references || {})
-          .filter((entry): entry is [string, string] => typeof entry[0] === 'string' && typeof entry[1] === 'string' && entry[1].startsWith('data:'))
+          .filter(
+            (entry): entry is [string, string] =>
+              typeof entry[0] === 'string' &&
+              typeof entry[1] === 'string' &&
+              (entry[1].startsWith('data:') ||
+                entry[1].startsWith('/api/public-image/') ||
+                entry[1].startsWith('http://') ||
+                entry[1].startsWith('https://'))
+          )
       ),
     ])
   );
@@ -170,6 +183,8 @@ function normalizeState(input: unknown): PersistedAppState {
 
 export async function GET() {
   try {
+    await ensureInitialDatabaseCompaction();
+
     if (!hasDatabaseConnection()) {
       return NextResponse.json(normalizeState(null));
     }
@@ -184,6 +199,8 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    await ensureInitialDatabaseCompaction();
+
     if (!hasDatabaseConnection()) {
       return NextResponse.json(
         { error: 'DATABASE_URL non configurata.' },

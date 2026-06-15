@@ -4349,18 +4349,6 @@ export default function Home() {
           >
             Cover Categorie
           </Link>
-          <Link
-            href="/erp-legends"
-            className="rounded-xl border border-[#D7D9DD] bg-white px-3 py-2 text-sm font-black text-[#103D66] transition-colors hover:bg-[#EEF1F4]"
-          >
-            Legende ERP
-          </Link>
-          <Link
-            href="/erp-review"
-            className="rounded-xl border border-[#D7D9DD] bg-white px-3 py-2 text-sm font-black text-[#103D66] transition-colors hover:bg-[#EEF1F4]"
-          >
-            Review ERP
-          </Link>
           <button onClick={() => void loadProducts(true)} className="flex items-center gap-2 rounded-xl bg-[#EEF1F4] px-4 py-2 text-sm font-bold">
             <RefreshCw size={16} className={isLoadingProducts ? 'animate-spin' : ''} /> Aggiorna
           </button>
