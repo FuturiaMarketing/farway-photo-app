@@ -1,8 +1,6 @@
 const fs = require('fs');
 const path = require('path');
 
-const GOOGLE_AUTH_UTILS_PATH = 'C:/Users/fabri/mcp-workspace/workspace-server/dist/auth-utils.js';
-const SPREADSHEET_ID = '1btoUu1JZ31TTfwctB1TaDV7sONVWX21t6sROkEkmnT8';
 const SHEET_RANGE = 'A1:H1000';
 
 function readEnvFile(filePath) {
@@ -137,14 +135,19 @@ async function main() {
     throw new Error('Configurazione WooCommerce incompleta in .env.local');
   }
 
-  const { OAuthCredentialStorage } = require(GOOGLE_AUTH_UTILS_PATH);
+  const googleAuthUtilsPath = env.GOOGLE_AUTH_UTILS_PATH || process.env.GOOGLE_AUTH_UTILS_PATH;
+  const spreadsheetId = env.FARWAY_PRICES_SHEET_ID || process.env.FARWAY_PRICES_SHEET_ID;
+  if (!googleAuthUtilsPath) throw new Error('GOOGLE_AUTH_UTILS_PATH mancante (impostalo in .env.local)');
+  if (!spreadsheetId) throw new Error('FARWAY_PRICES_SHEET_ID mancante (impostalo in .env.local)');
+
+  const { OAuthCredentialStorage } = require(googleAuthUtilsPath);
   const creds = await OAuthCredentialStorage.loadCredentials();
   const token = creds?.access_token;
   if (!token) throw new Error('Token Google non disponibile');
 
   const sheet = await googleRequest(
     token,
-    `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(SHEET_RANGE)}`
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(SHEET_RANGE)}`
   );
 
   const values = Array.isArray(sheet.values) ? sheet.values : [];
@@ -183,7 +186,7 @@ async function main() {
   const logRows = [];
   const summary = {
     dryRun,
-    spreadsheetId: SPREADSHEET_ID,
+    spreadsheetId,
     totalRowsRead: rows.length,
     validRows: 0,
     updatedItems: 0,

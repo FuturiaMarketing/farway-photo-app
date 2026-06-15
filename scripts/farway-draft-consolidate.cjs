@@ -30,7 +30,7 @@ const path = require('path');
 
 const APPLY_CONFIRMATION = 'FARWAY_DRAFTS_CONSOLIDATED_APPROVED';
 const WC_API_TIMEOUT_MS = 60000;
-const WC_WRITE_DELAY_MS = 200; // pausa tra scritture per non saturare IONOS
+const WC_WRITE_DELAY_MS = 200; // pausa tra scritture per non saturare il server WooCommerce
 
 // Mappe (riprodotte da farway-erp-reconcile-products.cjs per indipendenza)
 const SIZE_MAP = new Map([
