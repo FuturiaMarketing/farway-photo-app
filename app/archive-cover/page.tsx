@@ -871,12 +871,12 @@ export default function ArchiveCoverPage() {
               list="archive-cover-model-suggestions"
               value={modelOverride}
               onChange={(event) => setModelOverride(event.target.value)}
-              placeholder="auto (es. gemini-3.1-flash-image-preview, nanobanana2)"
+              placeholder="auto (es. gemini-3.1-flash-image, nanobanana2)"
               className="w-full rounded-xl border border-[#D7D9DD] bg-white px-3 py-2 text-sm font-bold outline-none"
             />
             <datalist id="archive-cover-model-suggestions">
               <option value="gemini-2.5-flash-image" />
-              <option value="gemini-3.1-flash-image-preview" />
+              <option value="gemini-3.1-flash-image" />
               <option value="nanobanana2" />
             </datalist>
             <p className="mt-2 text-xs text-[#4C6583]">

@@ -11,7 +11,7 @@ const analysisModel = 'gemini-2.5-flash';
 const allowedImageSizes = new Set(['1K', '2K', '4K']);
 const imageGenerationModels = [
   'gemini-2.5-flash-image',
-  'gemini-3.1-flash-image-preview',
+  'gemini-3.1-flash-image',
 ] as const;
 const maxImageGenerationAttempts = 2;
 const maxGenerationReferenceImages = 8;
