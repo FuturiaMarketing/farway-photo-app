@@ -12,8 +12,8 @@ const geminiFetchTimeoutMs = 70_000;
 const validationFetchTimeoutMs = 12_000;
 const allowedImageSizes = new Set(['1K', '2K', '4K']);
 const defaultImageGenerationModels = [
-  'gemini-2.5-flash-image',
-  'gemini-3.1-flash-image-preview',
+  'gemini-3-pro-image',
+  'gemini-3.1-flash-image',
 ] as const;
 const maxImageGenerationAttempts = 4;
 const minBannerAspectRatio = ARCHIVE_COVER_MIN_ACCEPTED_ASPECT_RATIO;
