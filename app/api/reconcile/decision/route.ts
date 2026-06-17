@@ -9,6 +9,7 @@ function counts(decisions: Record<string, Decision>) {
     decided: dec.length,
     confirmed: dec.filter((d) => d.status === 'confirmed').length,
     bucket: dec.filter((d) => d.status === 'bucket').length,
+    multi: dec.filter((d) => d.status === 'multi').length,
     skip: dec.filter((d) => d.status === 'skip').length,
   };
 }
@@ -28,7 +29,7 @@ export async function POST(req: Request) {
     const file = String(body.file || '').trim();
     const status = String(body.status || '').trim() as Decision['status'];
     if (!file) return NextResponse.json({ error: 'file obbligatorio' }, { status: 400 });
-    if (!['confirmed', 'bucket', 'skip'].includes(status)) {
+    if (!['confirmed', 'bucket', 'multi', 'skip'].includes(status)) {
       return NextResponse.json({ error: 'status non valido' }, { status: 400 });
     }
     const decision: Decision = {

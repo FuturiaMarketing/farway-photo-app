@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, Download, RotateCcw, Search, FolderInput } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, Download, RotateCcw, Search, FolderInput, Layers } from 'lucide-react';
 import { buildTargetName, VIEWS } from '@/lib/reconcile-naming';
 
 // ---- types (mirror lib/server/reconcile-store.ts) ----
@@ -27,7 +27,7 @@ type ManifestItem = {
 };
 type Decision = {
   file: string;
-  status: 'confirmed' | 'bucket' | 'skip';
+  status: 'confirmed' | 'bucket' | 'multi' | 'skip';
   productId: number | null;
   productName: string;
   sku?: string;
@@ -46,8 +46,8 @@ type SlimProduct = {
   primaryThumb: string | null;
   colorways: SlimColorway[];
 };
-type Counts = { total: number; decided: number; pending: number; confirmed: number; bucket: number; skip: number };
-type Filter = 'pending' | 'all' | 'confirmed' | 'bucket';
+type Counts = { total: number; decided: number; pending: number; confirmed: number; bucket: number; multi: number; skip: number };
+type Filter = 'pending' | 'all' | 'confirmed' | 'bucket' | 'multi';
 
 const C = {
   primary: '#103D66', accent: '#6DA34D', accentBg: '#E6F0E0',
@@ -117,6 +117,7 @@ export default function AbbinaFotoPage() {
     if (filter === 'pending') return items.filter((i) => !decisions[i.file]);
     if (filter === 'confirmed') return items.filter((i) => decisions[i.file]?.status === 'confirmed');
     if (filter === 'bucket') return items.filter((i) => decisions[i.file]?.status === 'bucket');
+    if (filter === 'multi') return items.filter((i) => decisions[i.file]?.status === 'multi');
     return items;
   }, [items, decisions, filter]);
 
@@ -191,6 +192,16 @@ export default function AbbinaFotoPage() {
     advance();
   }, [current, note, postDecision, advance]);
 
+  const sendMulti = useCallback(async () => {
+    if (!current) return;
+    await postDecision({
+      file: current.file, status: 'multi',
+      productId: null, productName: '', colorway: null, view: '',
+      note: note || 'foto con più prodotti',
+    });
+    advance();
+  }, [current, note, postDecision, advance]);
+
   const resetDecision = useCallback(async (file: string) => {
     setSaving(true);
     try {
@@ -211,6 +222,7 @@ export default function AbbinaFotoPage() {
       pending: items.filter((i) => !decisions[i.file]).length,
       confirmed: dec.filter((d) => d.status === 'confirmed').length,
       bucket: dec.filter((d) => d.status === 'bucket').length,
+      multi: dec.filter((d) => d.status === 'multi').length,
       skip: dec.filter((d) => d.status === 'skip').length,
     });
   }, [decisions, items]);
@@ -229,12 +241,13 @@ export default function AbbinaFotoPage() {
         }
       } else if (e.key === 'Enter') { void confirm(); }
       else if (e.key.toLowerCase() === 'b') { void sendToBucket(); }
+      else if (e.key.toLowerCase() === 'm') { void sendMulti(); }
       else if (e.key === 'ArrowRight') { advance(); }
       else if (e.key === 'ArrowLeft') { setIdx((i) => Math.max(0, i - 1)); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [current, confirm, sendToBucket, advance]);
+  }, [current, confirm, sendToBucket, sendMulti, advance]);
 
   const searchResults = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -257,6 +270,7 @@ export default function AbbinaFotoPage() {
               <Pill label={`${counts.decided}/${counts.total} decise`} />
               <Pill label={`${counts.confirmed} confermate`} bg={C.accentBg} fg="#3F6B2A" />
               <Pill label={`${counts.bucket} da verificare`} bg="#FFF3D6" fg="#8A6400" />
+              <Pill label={`${counts.multi} multiprodotto`} bg="#ECE6F5" fg="#5A3E8A" />
               <a href="/api/reconcile/export" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 8, border: `1px solid ${C.border}`, color: C.primary, textDecoration: 'none' }}>
                 <Download size={14} /> Esporta
               </a>
@@ -264,11 +278,11 @@ export default function AbbinaFotoPage() {
           )}
         </div>
         <div className="mx-auto max-w-7xl px-6 pb-3" style={{ display: 'flex', gap: 8 }}>
-          {(['pending', 'all', 'confirmed', 'bucket'] as Filter[]).map((f) => (
+          {(['pending', 'all', 'confirmed', 'bucket', 'multi'] as Filter[]).map((f) => (
             <button key={f} onClick={() => { setFilter(f); setIdx(0); }}
               style={{ padding: '4px 12px', borderRadius: 999, fontSize: 12, border: `1px solid ${filter === f ? C.primary : C.border}`,
                 background: filter === f ? C.primary : C.surface, color: filter === f ? '#fff' : C.muted, cursor: 'pointer' }}>
-              {f === 'pending' ? 'Da decidere' : f === 'all' ? 'Tutte' : f === 'confirmed' ? 'Confermate' : 'Da verificare'}
+              {f === 'pending' ? 'Da decidere' : f === 'all' ? 'Tutte' : f === 'confirmed' ? 'Confermate' : f === 'bucket' ? 'Da verificare' : 'Multiprodotto'}
             </button>
           ))}
         </div>
@@ -312,7 +326,8 @@ export default function AbbinaFotoPage() {
                   <strong style={{ color: C.primary }}>Decisione salvata:</strong>{' '}
                   {decisions[current.file].status === 'confirmed'
                     ? `${decisions[current.file].productName}${decisions[current.file].colorway ? ' · ' + decisions[current.file].colorway : ''} (${decisions[current.file].view})`
-                    : decisions[current.file].status === 'bucket' ? `Da verificare — ${decisions[current.file].note || ''}` : 'Saltata'}
+                    : decisions[current.file].status === 'bucket' ? `Da verificare — ${decisions[current.file].note || ''}`
+                    : decisions[current.file].status === 'multi' ? `Multiprodotto — ${decisions[current.file].note || ''}` : 'Saltata'}
                   <button onClick={() => resetDecision(current.file)} style={{ marginLeft: 8, fontSize: 12, color: C.primary, background: 'none', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                     <RotateCcw size={12} /> rifai
                   </button>
@@ -424,9 +439,12 @@ export default function AbbinaFotoPage() {
                 )}
 
                 <div style={{ marginTop: 14, borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
-                  <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="nota (opzionale, per 'da verificare')"
+                  <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="nota (opzionale, per 'da verificare' / 'multiprodotto')"
                     style={{ width: '100%', padding: 8, borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 13 }} />
-                  <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                    <button onClick={sendMulti} disabled={saving} style={btn(C.surface, '#5A3E8A', saving, '#D8C9EE')}>
+                      <Layers size={16} /> Multiprodotto <kbd style={kbd()}>M</kbd>
+                    </button>
                     <button onClick={sendToBucket} disabled={saving} style={btn(C.surface, '#8A6400', saving, '#FFE6A8')}>
                       <FolderInput size={16} /> Da verificare <kbd style={kbd()}>B</kbd>
                     </button>

@@ -16,7 +16,7 @@ const LOCAL_PATH = path.join(process.cwd(), 'data', 'reconcile', 'decisions.json
 
 export type Decision = {
   file: string;
-  status: 'confirmed' | 'bucket' | 'skip';
+  status: 'confirmed' | 'bucket' | 'multi' | 'skip';
   productId: number | null;
   productName: string;
   sku?: string;

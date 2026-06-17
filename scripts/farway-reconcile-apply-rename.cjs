@@ -83,16 +83,18 @@ async function loadDecisions() {
   const decisions = await loadDecisions();
 
   const bucketDir = path.join(STILL_LIFE_DIR, '_da-verificare');
+  const multiDir = path.join(STILL_LIFE_DIR, '_multiprodotto');
   const existing = new Set(fs.readdirSync(STILL_LIFE_DIR).filter((f) => /\.jpg$/i.test(f)));
   const used = new Set(existing); // reserve names already on disk (incl. the 7 already-renamed)
 
   const ts = new Date().toISOString();
   const logRows = [];
-  const plan = { rename: [], bucket: [], skip: [], missing: [], conflict: [] };
+  const plan = { rename: [], bucket: [], multi: [], skip: [], missing: [], conflict: [] };
 
   // confirmed first (stable order so suffix assignment is deterministic)
   const confirmed = decisions.filter((d) => d.status === 'confirmed').sort((a, b) => a.file.localeCompare(b.file));
   const buckets = decisions.filter((d) => d.status === 'bucket').sort((a, b) => a.file.localeCompare(b.file));
+  const multis = decisions.filter((d) => d.status === 'multi').sort((a, b) => a.file.localeCompare(b.file));
 
   for (const d of confirmed) {
     if (!existing.has(d.file)) { plan.missing.push(d.file); continue; }
@@ -115,11 +117,18 @@ async function loadDecisions() {
     logRows.push([ts, 'bucket', d.file, `_da-verificare/${d.file}`, '', d.note || '']);
   }
 
+  for (const d of multis) {
+    if (!existing.has(d.file)) { plan.missing.push(d.file); continue; }
+    plan.multi.push({ from: d.file, note: d.note || '' });
+    logRows.push([ts, 'multiprodotto', d.file, `_multiprodotto/${d.file}`, '', d.note || '']);
+  }
+
   // ---- report ----
   console.log(`MODE: ${APPLY ? 'APPLY' : 'DRY-RUN'}  |  folder: ${STILL_LIFE_DIR}`);
-  console.log(`decisions: ${decisions.length}  -> rename ${plan.rename.length}, bucket ${plan.bucket.length}, already-standard ${plan.skip.length}, missing ${plan.missing.length}, conflict ${plan.conflict.length}\n`);
+  console.log(`decisions: ${decisions.length}  -> rename ${plan.rename.length}, bucket ${plan.bucket.length}, multiprodotto ${plan.multi.length}, already-standard ${plan.skip.length}, missing ${plan.missing.length}, conflict ${plan.conflict.length}\n`);
   for (const r of plan.rename) console.log(`  RENAME  ${r.from}\n       -> ${r.to}`);
   for (const b of plan.bucket) console.log(`  BUCKET  ${b.from}  (${b.note})`);
+  for (const m of plan.multi) console.log(`  MULTI   ${m.from}  (${m.note})`);
   if (plan.missing.length) console.log(`  MISSING (not in folder): ${plan.missing.join(', ')}`);
   if (plan.conflict.length) console.log(`  CONFLICT (no free name): ${plan.conflict.join(', ')}`);
 
@@ -134,8 +143,14 @@ async function loadDecisions() {
     fs.renameSync(from, to); done++;
   }
   for (const b of plan.bucket) {
-    const from = path.join(STILL_LIFE_DIR, b.from), to = path.join(bucketDir, b.file || b.from);
+    const from = path.join(STILL_LIFE_DIR, b.from), to = path.join(bucketDir, b.from);
     if (fs.existsSync(to)) { console.error('SKIP (already bucketed):', b.from); continue; }
+    fs.renameSync(from, to); done++;
+  }
+  fs.mkdirSync(multiDir, { recursive: true });
+  for (const m of plan.multi) {
+    const from = path.join(STILL_LIFE_DIR, m.from), to = path.join(multiDir, m.from);
+    if (fs.existsSync(to)) { console.error('SKIP (already in _multiprodotto):', m.from); continue; }
     fs.renameSync(from, to); done++;
   }
 
